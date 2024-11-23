@@ -40,5 +40,9 @@ Thumbs.db
 # Coverage data files
 coverage.out
 
+# env files
+.env
+.env.*
+
 # Application-specific files
 notes.txt
