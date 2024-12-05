@@ -13,8 +13,6 @@ type UserRepo struct {
 	DB *sql.DB
 }
 
-const dbTimeout = 3 * time.Second
-
 func New(db *sql.DB) *UserRepo {
 	return &UserRepo{DB: db}
 }
@@ -37,7 +35,7 @@ func (r *UserRepo) GetAll(ctx context.Context) ([]*models.User, error) {
 
 // GetById returns one user by id
 func (r *UserRepo) GetById(ctx context.Context, id int) (*models.User, error) {
-	query := `select id, email, first_name, last_name, password, user_active, created_at, updated_at from users where id = $1`
+  query := `SELECT id, email, first_name, last_name, password, user_active, created_at, updated_at FROM users WHERE id = $1`
 
 	var user models.User
 	row := r.DB.QueryRowContext(ctx, query, id)
@@ -127,13 +125,6 @@ func (r *UserRepo) DeleteByID(ctx context.Context, id int) error {
 
 // Insert a single user into the DB
 func (r *UserRepo) Insert(ctx context.Context, u models.User) (int, error) {
-  // TODO: In the service layer
-	// // encrypte the user pwd (hash the pwd)
-	// encryptedPwd, err := bcrypt.GenerateFromPassword([]byte(user.Password), 12)
-	// if err != nil {
- //    return 0, fmt.Errorf("encrypting password: %w", err) 
-	// }
-
 	// sql statement
 	stmt := `INSERT INTO users (email, first_name, last_name, password, user_active, created_at, updated_at) 
   VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`
@@ -157,7 +148,7 @@ func (r *UserRepo) Insert(ctx context.Context, u models.User) (int, error) {
 	return newId, nil
 }
 
-// Helper functions
+//========================= Helper functions ============================
 
 // scanUsers is a helper function to scan multiple rows into a slice of User structs.
 func scanUsers(rows *sql.Rows) ([]*models.User, error) {
