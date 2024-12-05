@@ -12,14 +12,14 @@ import (
 )
 
 type UserService struct {
-  userRepo *repositories.UserRepo	
+  userRepo repositories.UserRepoInterface
 }
 
 const dbTimeout = 3 * time.Second
 
 // New is the function used to create an instance of the service package. 
 // It returns the type UserService.
-func New(userRepo *repositories.UserRepo) *UserService {
+func New(userRepo repositories.UserRepoInterface) *UserService {
   return &UserService{userRepo: userRepo}
 }
 
@@ -82,9 +82,18 @@ func (s *UserService) DeleteByID(ctx context.Context, id int) error {
   return s.userRepo.DeleteByID(ctx, id)
 }
 
-func (s *UserService) Insert(u models.User) (int, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+func (s *UserService) Insert(ctx context.Context, u models.User) (int, error) {
+	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
   defer cancel()
+
+	// Encrypte the user pwd (hash the pwd)
+	encryptedPwd, err := bcrypt.GenerateFromPassword([]byte(u.Password), 12)
+	if err != nil {
+    return 0, fmt.Errorf("encrypting password: %w", err) 
+	}
+
+  // Update the user password
+  u.Password = string(encryptedPwd)
 
   return s.userRepo.Insert(ctx, u) 
 }
