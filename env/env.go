@@ -1,4 +1,4 @@
-package config
+package env
 
 import (
 	"fmt"
@@ -8,7 +8,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-type Config struct {
+type EnvConfig struct {
   DBHost     string
   DBPort     string
   DBUser     string
@@ -18,7 +18,7 @@ type Config struct {
   AppPort    string
 }
 
-var AppConfig *Config
+var Config *EnvConfig
 
 // Initialize AppConfig by loading environment variables
 func LoadEnv() {
@@ -33,7 +33,7 @@ func LoadEnv() {
 		log.Printf("[INFO] No %s file found, using system environment variables", envFile)
 	}
 
-  AppConfig = &Config{
+  Config = &EnvConfig{
     DBHost:     getEnv("DB_HOST", "localhost"),
     DBPort:     getEnv("DB_PORT", "5432"),
     DBUser:     getEnv("DB_USER", "postgres"),

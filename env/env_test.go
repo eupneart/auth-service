@@ -1,4 +1,4 @@
-package config
+package env
 
 import (
 	"os"
@@ -21,13 +21,13 @@ func TestLoadEnv_ValidEnvVars(t *testing.T) {
 	LoadEnv()
 
 	// Assert that the values are correctly loaded into the AppConfig
-	assert.Equal(t, "testhost", AppConfig.DBHost)
-	assert.Equal(t, "5433", AppConfig.DBPort)
-	assert.Equal(t, "testuser", AppConfig.DBUser)
-	assert.Equal(t, "testpass", AppConfig.DBPassword)
-	assert.Equal(t, "testdb", AppConfig.DBName)
-	assert.Equal(t, "testsecret", AppConfig.JWTSecret)
-	assert.Equal(t, "9090", AppConfig.AppPort)
+	assert.Equal(t, "testhost", Config.DBHost)
+	assert.Equal(t, "5433", Config.DBPort)
+	assert.Equal(t, "testuser", Config.DBUser)
+	assert.Equal(t, "testpass", Config.DBPassword)
+	assert.Equal(t, "testdb", Config.DBName)
+	assert.Equal(t, "testsecret", Config.JWTSecret)
+	assert.Equal(t, "9090", Config.AppPort)
 }
 
 func TestLoadEnv_DefaultValues(t *testing.T) {
@@ -44,13 +44,13 @@ func TestLoadEnv_DefaultValues(t *testing.T) {
   LoadEnv()
 
 	// Assert that the default values are used
-	assert.Equal(t, "localhost", AppConfig.DBHost)
-	assert.Equal(t, "5432", AppConfig.DBPort)
-	assert.Equal(t, "postgres", AppConfig.DBUser)
-	assert.Equal(t, "", AppConfig.DBPassword)
-	assert.Equal(t, "auth_db", AppConfig.DBName)
-	assert.Equal(t, "defaultsecret", AppConfig.JWTSecret)
-	assert.Equal(t, "8080", AppConfig.AppPort)
+	assert.Equal(t, "localhost", Config.DBHost)
+	assert.Equal(t, "5432", Config.DBPort)
+	assert.Equal(t, "postgres", Config.DBUser)
+	assert.Equal(t, "", Config.DBPassword)
+	assert.Equal(t, "auth_db", Config.DBName)
+	assert.Equal(t, "defaultsecret", Config.JWTSecret)
+	assert.Equal(t, "8080", Config.AppPort)
 }
 
 func TestLoadEnv_MissingEnvFile(t *testing.T) {
@@ -61,11 +61,11 @@ func TestLoadEnv_MissingEnvFile(t *testing.T) {
 	LoadEnv()
 
 	// Check if default environment variables are used since no .env file is present
-	assert.Equal(t, "localhost", AppConfig.DBHost)
-	assert.Equal(t, "5432", AppConfig.DBPort)
-	assert.Equal(t, "postgres", AppConfig.DBUser)
-	assert.Equal(t, "", AppConfig.DBPassword)
-	assert.Equal(t, "auth_db", AppConfig.DBName)
-	assert.Equal(t, "defaultsecret", AppConfig.JWTSecret)
-	assert.Equal(t, "8080", AppConfig.AppPort)
+	assert.Equal(t, "localhost", Config.DBHost)
+	assert.Equal(t, "5432", Config.DBPort)
+	assert.Equal(t, "postgres", Config.DBUser)
+	assert.Equal(t, "", Config.DBPassword)
+	assert.Equal(t, "auth_db", Config.DBName)
+	assert.Equal(t, "defaultsecret", Config.JWTSecret)
+	assert.Equal(t, "8080", Config.AppPort)
 }

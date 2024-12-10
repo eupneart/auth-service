@@ -151,7 +151,9 @@ func TestUserService_ResetPassword(t *testing.T) {
 		Run(func(args mock.Arguments) {
 			// Verify the password is hashed
 			updatedUser := args.Get(1).(models.User)
+
 			assert.NotEqual(t, user.Password, updatedUser.Password, "Password should be hashed")
+
 			// Verify bcrypt hash is valid
 			err := bcrypt.CompareHashAndPassword([]byte(updatedUser.Password), []byte(user.Password))
 			assert.NoError(t, err, "Bcrypt hash should be valid")
