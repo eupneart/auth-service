@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/mayart-ai/auth-service/internal/models"
+	"github.com/eupneart/auth-service/internal/models"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"golang.org/x/crypto/bcrypt"
@@ -34,7 +34,7 @@ func TestUserService_GetById(t *testing.T) {
 	service := New(mockRepo)
 
 	ctx := context.Background()
-	
+
 	// Test with valid ID
 	expectedUser := &models.User{ID: 1, Email: "test@example.com"}
 	mockRepo.On("GetById", mock.Anything, 1).Return(expectedUser, nil)
@@ -55,7 +55,7 @@ func TestUserService_GetByEmail(t *testing.T) {
 	service := New(mockRepo)
 
 	ctx := context.Background()
-	
+
 	// Test with valid email
 	expectedUser := &models.User{Email: "test@example.com"}
 	mockRepo.On("GetByEmail", mock.Anything, "test@example.com").Return(expectedUser, nil)
@@ -76,7 +76,7 @@ func TestUserService_Update(t *testing.T) {
 	service := New(mockRepo)
 
 	ctx := context.Background()
-	
+
 	// Test with valid user
 	userToUpdate := models.User{ID: 1, Email: "updated@example.com"}
 	mockRepo.On("Update", mock.Anything, userToUpdate).Return(nil)
@@ -115,7 +115,7 @@ func TestUserService_Insert(t *testing.T) {
 	service := New(mockRepo)
 
 	ctx := context.Background()
-	
+
 	// Test user insertion
 	newUser := models.User{Email: "new@example.com", Password: "testpassword"}
 	expectedID := 1
@@ -142,7 +142,7 @@ func TestUserService_ResetPassword(t *testing.T) {
 	service := New(mockRepo)
 
 	ctx := context.Background()
-	
+
 	// Test password reset
 	user := &models.User{ID: 1, Password: "newpassword"}
 
@@ -170,7 +170,7 @@ func TestUserService_PasswordMatches(t *testing.T) {
 	// Generate a bcrypt hash of a known password
 	plainTextPassword := "testpassword"
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(plainTextPassword), 12)
-	
+
 	// Test cases
 	testCases := []struct {
 		name           string
@@ -202,7 +202,7 @@ func TestUserService_PasswordMatches(t *testing.T) {
 				Password: tc.storedPassword,
 			}
 
-			match, err := service.PasswordMatches(tc.inputPassword, user)
+			match, err := service.PasswordMatches(user, tc.inputPassword)
 
 			assert.Equal(t, tc.expectedMatch, match)
 			if tc.expectError {

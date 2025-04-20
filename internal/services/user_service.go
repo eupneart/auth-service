@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mayart-ai/auth-service/internal/models"
-	"github.com/mayart-ai/auth-service/internal/repositories"
+	"github.com/eupneart/auth-service/internal/models"
+	"github.com/eupneart/auth-service/internal/repositories"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -47,7 +47,7 @@ func (s *UserService) GetByEmail(ctx context.Context, email string) (*models.Use
 		return nil, fmt.Errorf("user email must be provided")
 	}
 
-  ctx, cancel := context.WithTimeout(context.Background(), dbTimeout)
+  ctx, cancel := context.WithTimeout(ctx, dbTimeout)
   defer cancel() 
 
   return s.userRepo.GetByEmail(ctx, email)
@@ -109,11 +109,11 @@ func (s *UserService) ResetPassword(ctx context.Context, user *models.User) erro
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Create a user struct with the new password
-	u := models.User{
-		ID:       user.ID,                  // Specify the user ID
-		Password: string(hashedPassword), // Update the password field
-	}
+  // Create a user struct with the new password
+  u := models.User{
+    ID:       user.ID,                  // Specify the user ID
+    Password: string(hashedPassword), // Update the password field
+  }
 
   return s.userRepo.Update(ctx, u)
 }
@@ -121,7 +121,7 @@ func (s *UserService) ResetPassword(ctx context.Context, user *models.User) erro
 // PasswordMatches uses Go's bcrypt package to compare a user supplied password
 // with the hash we have stored for a given user in the database. If the password
 // and hash match, we return true; otherwise, we return false.
-func (s *UserService) PasswordMatches(plainText string, u *models.User) (bool, error) {
+func (s *UserService) PasswordMatches(u *models.User, plainText string) (bool, error) {
 	err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(plainText))
 	if err != nil {
 		switch {

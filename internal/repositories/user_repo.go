@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mayart-ai/auth-service/internal/models"
+	"github.com/eupneart/auth-service/internal/models"
 )
 
 type UserRepoInterface interface {
@@ -46,30 +46,28 @@ func (r *UserRepo) GetAll(ctx context.Context) ([]*models.User, error) {
 func (r *UserRepo) GetById(ctx context.Context, id int) (*models.User, error) {
   query := `SELECT id, email, first_name, last_name, password, user_active, created_at, updated_at FROM users WHERE id = $1`
 
-	var user models.User
 	row := r.DB.QueryRowContext(ctx, query, id)
 
-	err := scanUser(row, &user)
+	usr, err := scanUser(row)
 	if err != nil {
     return nil, fmt.Errorf("querying user by id: %w", err)
 	}
 
-	return &user, nil
+	return usr, nil
 }
 
 // GetByEmail returns one user by email
 func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	query := `SELECT id, email, first_name, last_name, password, user_active, created_at, updated_at FROM users WHERE email = $1`
 
-	var user models.User
 	row := r.DB.QueryRowContext(ctx, query, email)
 
-	err := scanUser(row, &user)
+	usr, err := scanUser(row)
 	if err != nil {
     return nil, fmt.Errorf("querying user by email: %w", err)
 	}
 
-	return &user, nil
+	return usr, nil
 }
 
 // Update one user in the database, using the user information
@@ -131,7 +129,6 @@ func (r *UserRepo) DeleteByID(ctx context.Context, id int) error {
 
 	return nil
 }
-
 // Insert a single user into the DB
 func (r *UserRepo) Insert(ctx context.Context, u models.User) (int, error) {
 	// sql statement
@@ -163,22 +160,22 @@ func (r *UserRepo) Insert(ctx context.Context, u models.User) (int, error) {
 func scanUsers(rows *sql.Rows) ([]*models.User, error) {
   var users []*models.User
 	for rows.Next() {
-		var user models.User
-		// Scan the current row into the user struct
+		var usr models.User
+		// Scan the current row into the usr struct
 		if err := rows.Scan(
-			&user.ID,
-			&user.Email,
-			&user.FirstName,
-			&user.LastName,
-			&user.Password,
-			&user.Active,
-			&user.CreatedAt,
-			&user.UpdatedAt,
+			&usr.ID,
+			&usr.Email,
+			&usr.FirstName,
+			&usr.LastName,
+			&usr.Password,
+			&usr.Active,
+			&usr.CreatedAt,
+			&usr.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
-		// Append the scanned user to the slice
-		users = append(users, &user)
+		// Append the scanned usr to the slice
+		users = append(users, &usr)
 	}
 
 	// Check if there was any error while iterating through the rows
@@ -190,15 +187,21 @@ func scanUsers(rows *sql.Rows) ([]*models.User, error) {
 }
 
 // scanUser is a helper function to scan a single row into a User struct.
-func scanUser(row *sql.Row, user *models.User) error {
-	return row.Scan(
-		&user.ID,
-		&user.Email,
-		&user.FirstName,
-		&user.LastName,
-		&user.Password,
-		&user.Active,
-		&user.CreatedAt,
-		&user.UpdatedAt,
+func scanUser(row *sql.Row) (*models.User, error) {
+  var usr models.User
+  err := row.Scan(
+		&usr.ID,
+		&usr.Email,
+		&usr.FirstName,
+		&usr.LastName,
+		&usr.Password,
+		&usr.Active,
+		&usr.CreatedAt,
+		&usr.UpdatedAt,
 	)
+  if err != nil {
+    return nil, err
+  }
+
+  return &usr, nil
 }

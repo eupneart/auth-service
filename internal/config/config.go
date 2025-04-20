@@ -1,8 +1,8 @@
 package config
 
 import (
-	"github.com/mayart-ai/auth-service/env"
-	"github.com/mayart-ai/auth-service/internal/services"
+	"github.com/eupneart/auth-service/env"
+	"github.com/eupneart/auth-service/internal/services"
 )
 
 type Config struct {
