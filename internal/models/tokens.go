@@ -9,36 +9,36 @@ import (
 // Claims represents the JWT claims structure for both access and refresh tokens
 type Claims struct {
 	jwt.RegisteredClaims
-	
+
 	// User-specific claims
-	UserID    string   `json:"user_id"`
-	Email     string   `json:"email"`
-	Roles     []string `json:"roles"`
-	
+	UserID string   `json:"user_id"`
+	Email  string   `json:"email"`
+	Roles  []string `json:"roles"`
+
 	// Token-specific claims
-	TokenType string   `json:"token_type"` // "access" or "refresh"
-	
+	TokenType string `json:"token_type"` // "access" or "refresh"
+
 	// Extra metadata
-	DeviceID  string   `json:"device_id,omitempty"`  // For tracking different devices
-	ClientID  string   `json:"client_id,omitempty"`  // For different client applications
+	DeviceID string `json:"device_id,omitempty"` // For tracking different devices
+	ClientID string `json:"client_id,omitempty"` // For different client applications
 }
 
 // TokenResponse represents the API response containing both access and refresh tokens
 type TokenResponse struct {
-	AccessToken    string `json:"access_token"`
-	RefreshToken   string `json:"refresh_token"`
-	TokenType      string `json:"token_type"` // Bearer
-	ExpiresIn      int64  `json:"expires_in"` // Access token expiration in seconds
-	RefreshExpiresIn int64 `json:"refresh_expires_in,omitempty"` // Refresh token expiration in seconds
+	AccessToken      string `json:"access_token"`
+	RefreshToken     string `json:"refresh_token"`
+	TokenType        string `json:"token_type"`                   // Bearer
+	ExpiresIn        int64  `json:"expires_in"`                   // Access token expiration in seconds
+	RefreshExpiresIn int64  `json:"refresh_expires_in,omitempty"` // Refresh token expiration in seconds
 }
 
 // TokenPair represents the internal structure for token management
 type TokenPair struct {
-	AccessToken    string
-	RefreshToken   string
-	AccessTokenID  string // JTI for access token
-	RefreshTokenID string // JTI for refresh token
-	ExpiresAt      time.Time
+	AccessToken      string
+	RefreshToken     string
+	AccessTokenID    string // JTI for access token
+	RefreshTokenID   string // JTI for refresh token
+	ExpiresAt        time.Time
 	RefreshExpiresAt time.Time
 }
 
@@ -77,18 +77,18 @@ type TokenValidationResponse struct {
 
 // TokenPreferences represents user-specific token preferences
 type TokenPreferences struct {
-	UserID                 string `json:"user_id"`
-	AccessTokenLifetime    int    `json:"access_token_lifetime"`  // in minutes
-	RefreshTokenLifetime   int    `json:"refresh_token_lifetime"` // in hours
-	AllowMultipleDevices   bool   `json:"allow_multiple_devices"`
-	MaxActiveSessions      int    `json:"max_active_sessions"`
+	UserID               string `json:"user_id"`
+	AccessTokenLifetime  int    `json:"access_token_lifetime"`  // in minutes
+	RefreshTokenLifetime int    `json:"refresh_token_lifetime"` // in hours
+	AllowMultipleDevices bool   `json:"allow_multiple_devices"`
+	MaxActiveSessions    int    `json:"max_active_sessions"`
 }
 
 // Constants for token types and defaults
 const (
 	TokenTypeAccess  = "access"
 	TokenTypeRefresh = "refresh"
-	
+
 	DefaultAccessTokenLifetime  = 15 * time.Minute
 	DefaultRefreshTokenLifetime = 7 * 24 * time.Hour // 7 days
 	DefaultTokenType            = "Bearer"
