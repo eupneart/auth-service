@@ -5,11 +5,11 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/eupneart/auth-service/db"
-	"github.com/eupneart/auth-service/env"
-	"github.com/eupneart/auth-service/internal/config"
+	"github.com/eupneart/auth-service/internal/api"
+	"github.com/eupneart/auth-service/internal/db"
 	"github.com/eupneart/auth-service/internal/repositories"
 	"github.com/eupneart/auth-service/internal/services"
+	"github.com/eupneart/auth-service/pkg/env"
 
 	_ "github.com/jackc/pgconn"
 	_ "github.com/jackc/pgx/v4"
@@ -20,7 +20,8 @@ const webPort = "80"
 
 func main() {
 	// Initialize configuration
-	env.LoadEnv()
+  settings := env.LoadEnv() 
+
 	log.Println("Starting authentication service")
 
 	// Connect to DB
@@ -32,13 +33,16 @@ func main() {
 	// Initialize the userRepo
 	userRepo := repositories.New(conn)
 
-	// Set up config
-	app := config.New(env.Config, services.New(userRepo))
+  // Create the UserService with the userRepo
+  userService := services.New(userRepo)
 
-	// Server definition
+  // Create the API server
+  server := api.NewServer(settings, userService)
+
+	// Define the http server
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%s", webPort),
-		Handler: app.Routes(),
+		Handler: server.Routes(),
 	}
 
 	// Exec server
