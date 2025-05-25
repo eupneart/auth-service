@@ -75,7 +75,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
     LastName: requestPayload.LastName,
     Email: requestPayload.Email,
     Password: requestPayload.Password,
-    Active: nil, // TODO
+    IsActive: true,
   }
 
 	_, err = h.UserService.Insert(context.Background(), usr)

@@ -9,6 +9,11 @@ import (
 	"github.com/eupneart/auth-service/internal/models"
 )
 
+const userColumns = `
+  id, email, first_name, last_name, password,
+  role, is_active, created_at, updated_at, last_login
+`
+
 type UserRepo struct {
 	DB *sql.DB
 }
@@ -19,9 +24,7 @@ func New(db *sql.DB) *UserRepo {
 
 // GetAll returns a slice of all users, sorted by last name
 func (r *UserRepo) GetAll(ctx context.Context) ([]*models.User, error) {
-	// SQL query
-	query := `SELECT id, email, first_name, last_name, password, user_active, created_at, updated_at
-	          FROM users ORDER BY last_name`
+  query := fmt.Sprintf(`SELECT %s FROM users ORDER BY last_name`, userColumns)
 
 	// Execute query
 	rows, err := r.DB.QueryContext(ctx, query)
@@ -35,7 +38,7 @@ func (r *UserRepo) GetAll(ctx context.Context) ([]*models.User, error) {
 
 // GetById returns one user by id
 func (r *UserRepo) GetById(ctx context.Context, id int) (*models.User, error) {
-  query := `SELECT id, email, first_name, last_name, password, user_active, created_at, updated_at FROM users WHERE id = $1`
+  query := fmt.Sprintf(`SELECT %s FROM users WHERE id = $1`, userColumns)
 
 	row := r.DB.QueryRowContext(ctx, query, id)
 
@@ -49,7 +52,7 @@ func (r *UserRepo) GetById(ctx context.Context, id int) (*models.User, error) {
 
 // GetByEmail returns one user by email
 func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*models.User, error) {
-	query := `SELECT id, email, first_name, last_name, password, user_active, created_at, updated_at FROM users WHERE email = $1`
+  query := fmt.Sprintf(`SELECT %s FROM users WHERE email = $1`, userColumns)
 
 	row := r.DB.QueryRowContext(ctx, query, email)
 
@@ -69,13 +72,15 @@ func (r *UserRepo) Update(ctx context.Context, u models.User) error {
 		isSet bool        // Whether the field should be included in the query
 	}
 
-	// Define the fields to be updated
-	fields := []field{
-		{"email", u.Email, u.Email != ""},
-		{"first_name", u.FirstName, u.FirstName != ""},
-		{"last_name", u.LastName, u.LastName != ""},
-		{"user_active", u.Active, u.Active != nil},
-	}
+  // Define the fields to be updated
+  fields := []field{
+    {"email", u.Email, u.Email != ""},
+    {"first_name", u.FirstName, u.FirstName != ""},
+    {"last_name", u.LastName, u.LastName != ""},
+    {"role", u.Role, u.Role != ""},
+    {"is_active", u.IsActive, true}, // is_active field will always be included
+    {"last_login", u.LastLogin, u.LastLogin != time.Time{}},
+  }
 
 	// Base query
 	query := "UPDATE users SET"
@@ -120,11 +125,12 @@ func (r *UserRepo) DeleteByID(ctx context.Context, id int) error {
 
 	return nil
 }
+
 // Insert a single user into the DB
 func (r *UserRepo) Insert(ctx context.Context, u models.User) (int, error) {
 	// sql statement
-	stmt := `INSERT INTO users (email, first_name, last_name, password, user_active, created_at, updated_at) 
-  VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`
+  stmt := `INSERT INTO users (email, first_name, last_name, password, role, is_active, created_at, updated_at, last_login) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`
 
 	// execute sql statement
 	var newId int
@@ -133,9 +139,11 @@ func (r *UserRepo) Insert(ctx context.Context, u models.User) (int, error) {
 		u.FirstName,
 		u.LastName,
 		u.Password,
-		u.Active,
+    u.Role,
+		u.IsActive,
 		time.Now(),
 		time.Now(),
+    time.Now(),
 	).Scan(&newId)
 
 	if err != nil {
@@ -146,7 +154,6 @@ func (r *UserRepo) Insert(ctx context.Context, u models.User) (int, error) {
 }
 
 //========================= Helper functions ============================
-
 // scanUsers is a helper function to scan multiple rows into a slice of User structs.
 func scanUsers(rows *sql.Rows) ([]*models.User, error) {
   var users []*models.User
@@ -159,9 +166,11 @@ func scanUsers(rows *sql.Rows) ([]*models.User, error) {
 			&usr.FirstName,
 			&usr.LastName,
 			&usr.Password,
-			&usr.Active,
+      &usr.Role,
+			&usr.IsActive,
 			&usr.CreatedAt,
 			&usr.UpdatedAt,
+      &usr.LastLogin,
 		); err != nil {
 			return nil, err
 		}
@@ -186,9 +195,11 @@ func scanUser(row *sql.Row) (*models.User, error) {
 		&usr.FirstName,
 		&usr.LastName,
 		&usr.Password,
-		&usr.Active,
+    &usr.Role,
+		&usr.IsActive,
 		&usr.CreatedAt,
 		&usr.UpdatedAt,
+		&usr.LastLogin,
 	)
   if err != nil {
     return nil, err
