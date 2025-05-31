@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/eupneart/auth-service/internal/models"
@@ -29,7 +30,11 @@ func (r *UserRepo) GetAll(ctx context.Context) ([]*models.User, error) {
 	// Execute query
 	rows, err := r.DB.QueryContext(ctx, query)
 	if err != nil {
-    return nil, fmt.Errorf("querying all users: %w", err)
+		slog.Error("failed to query all users",
+			"error", err,
+			"query", query,
+			"method", "UserRepo.GetAll")
+		return nil, fmt.Errorf("querying all users: %w", err)
 	}
 	defer rows.Close()
 
@@ -44,7 +49,12 @@ func (r *UserRepo) GetById(ctx context.Context, id int) (*models.User, error) {
 
 	usr, err := scanUser(row)
 	if err != nil {
-    return nil, fmt.Errorf("querying user by id: %w", err)
+		slog.Error("failed to query user by id",
+			"error", err,
+			"query", query,
+			"id", id,
+			"method", "UserRepo.GetById")
+		return nil, fmt.Errorf("querying user by id: %w", err)
 	}
 
 	return usr, nil
@@ -58,7 +68,12 @@ func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*models.User, 
 
 	usr, err := scanUser(row)
 	if err != nil {
-    return nil, fmt.Errorf("querying user by email: %w", err)
+		slog.Error("failed to query user by email",
+			"error", err,
+			"query", query,
+			"email", email,
+			"method", "UserRepo.GetByEmail")
+		return nil, fmt.Errorf("querying user by email: %w", err)
 	}
 
 	return usr, nil
@@ -108,6 +123,11 @@ func (r *UserRepo) Update(ctx context.Context, u models.User) error {
 	// Execute the query
 	_, err := r.DB.ExecContext(ctx, query, args...)
 	if err != nil {
+		slog.Error("failed to update user",
+			"error", err,
+			"query", query,
+			"user_id", u.ID,
+			"method", "UserRepo.Update")
 		return fmt.Errorf("updating user: %w", err)
 	}
 
@@ -120,7 +140,12 @@ func (r *UserRepo) DeleteByID(ctx context.Context, id int) error {
 
 	_, err := r.DB.ExecContext(ctx, stmt, id)
 	if err != nil {
-    return fmt.Errorf("deleting user by id: %w", err)
+		slog.Error("failed to delete user by id",
+			"error", err,
+			"query", stmt,
+			"id", id,
+			"method", "UserRepo.DeleteByID")
+		return fmt.Errorf("deleting user by id: %w", err)
 	}
 
 	return nil
@@ -147,7 +172,12 @@ func (r *UserRepo) Insert(ctx context.Context, u models.User) (int, error) {
 	).Scan(&newId)
 
 	if err != nil {
-    return 0, fmt.Errorf("inserting user: %w", err)
+		slog.Error("failed to insert user",
+			"error", err,
+			"query", stmt,
+			"email", u.Email,
+			"method", "UserRepo.Insert")
+		return 0, fmt.Errorf("inserting user: %w", err)
 	}
 
 	return newId, nil
@@ -172,6 +202,9 @@ func scanUsers(rows *sql.Rows) ([]*models.User, error) {
 			&usr.UpdatedAt,
       &usr.LastLogin,
 		); err != nil {
+			slog.Error("failed to scan user row",
+				"error", err,
+				"method", "scanUsers")
 			return nil, err
 		}
 		// Append the scanned usr to the slice
@@ -180,7 +213,10 @@ func scanUsers(rows *sql.Rows) ([]*models.User, error) {
 
 	// Check if there was any error while iterating through the rows
 	if err := rows.Err(); err != nil {
-    return nil, fmt.Errorf("scanning users: %w", err)
+		slog.Error("error iterating through user rows",
+			"error", err,
+			"method", "scanUsers")
+		return nil, fmt.Errorf("scanning users: %w", err)
 	}
 
   return users, nil
@@ -202,6 +238,9 @@ func scanUser(row *sql.Row) (*models.User, error) {
 		&usr.LastLogin,
 	)
   if err != nil {
+	slog.Error("failed to scan user",
+		"error", err,
+		"method", "scanUser")
     return nil, err
   }
 

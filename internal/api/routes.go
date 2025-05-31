@@ -14,7 +14,7 @@ func (s *Server) Routes() http.Handler {
 
 	// specify who is allowed to connect (cors policy)
 	mux.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"https://*", "http://*"},
+    AllowedOrigins:   []string{"https://eupneart.com", "http://localhost:4200", "http://localhost:8080"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
 		ExposedHeaders:   []string{"Link"},
