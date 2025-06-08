@@ -43,31 +43,31 @@ func (s *UserService) GetAll(ctx context.Context) ([]*models.User, error) {
 	return users, nil
 }
 
-func (s *UserService) GetById(ctx context.Context, id int) (*models.User, error) {
+func (s *UserService) GetByID(ctx context.Context, id int64) (*models.User, error) {
 	// Validate the input user data
 	if id == 0 {
 		slog.Warn("invalid user ID provided (zero value)",
 			"id", id,
-			"method", "UserService.GetById")
+			"method", "UserService.GetByID")
 		return nil, fmt.Errorf("user ID must be provided")
 	}
 	
 	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
 	
-	user, err := s.userRepo.GetById(ctx, id)
+	user, err := s.userRepo.GetByID(ctx, id)
 	if err != nil {
 		slog.Error("failed to get user by ID from repository",
 			"error", err,
 			"id", id,
-			"method", "UserService.GetById")
+			"method", "UserService.GetByID")
 		return nil, err
 	}
 	
 	slog.Info("successfully retrieved user by ID",
 		"id", id,
 		"email", user.Email,
-		"method", "UserService.GetById")
+		"method", "UserService.GetByID")
 	
 	return user, nil
 }
@@ -131,7 +131,7 @@ func (s *UserService) Update(ctx context.Context, u models.User) error {
 	return nil
 }
 
-func (s *UserService) DeleteByID(ctx context.Context, id int) error {
+func (s *UserService) DeleteByID(ctx context.Context, id int64) error {
 	if id == 0 {
 		slog.Warn("invalid user ID provided for deletion (zero value)",
 			"id", id,
@@ -158,7 +158,7 @@ func (s *UserService) DeleteByID(ctx context.Context, id int) error {
 	return nil
 }
 
-func (s *UserService) Insert(ctx context.Context, u models.User) (int, error) {
+func (s *UserService) Insert(ctx context.Context, u models.User) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
 	

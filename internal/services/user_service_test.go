@@ -10,14 +10,13 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func TestUserService_GetAll(t *testing.T) {
-	mockRepo := new(MockUserRepo)
+func TestUserService_GetAll(t *testing.T) { mockRepo := new(MockUserRepo)
 	service := New(mockRepo)
 
 	ctx := context.Background()
 	expectedUsers := []*models.User{
-		{ID: 1, Email: "test1@example.com"},
-		{ID: 2, Email: "test2@example.com"},
+		{ID: int64(1), Email: "test1@example.com"},
+		{ID: int64(2), Email: "test2@example.com"},
 	}
 
 	mockRepo.On("GetAll", mock.Anything).Return(expectedUsers, nil)
@@ -29,23 +28,23 @@ func TestUserService_GetAll(t *testing.T) {
 	mockRepo.AssertCalled(t, "GetAll", mock.Anything)
 }
 
-func TestUserService_GetById(t *testing.T) {
+func TestUserService_GetByID(t *testing.T) {
 	mockRepo := new(MockUserRepo)
 	service := New(mockRepo)
 
 	ctx := context.Background()
 
 	// Test with valid ID
-	expectedUser := &models.User{ID: 1, Email: "test@example.com"}
-	mockRepo.On("GetById", mock.Anything, 1).Return(expectedUser, nil)
+	expectedUser := &models.User{ID: int64(1), Email: "test@example.com"}
+	mockRepo.On("GetByID", mock.Anything, int64(1)).Return(expectedUser, nil)
 
-	user, err := service.GetById(ctx, 1)
+	user, err := service.GetByID(ctx, 1)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedUser, user)
-	mockRepo.AssertCalled(t, "GetById", mock.Anything, 1)
+	mockRepo.AssertCalled(t, "GetByID", mock.Anything, int64(1))
 
 	// Test with invalid ID (zero value)
-	_, err = service.GetById(ctx, 0)
+	_, err = service.GetByID(ctx, 0)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "user ID must be provided")
 }
@@ -99,10 +98,10 @@ func TestUserService_DeleteByID(t *testing.T) {
 	ctx := context.Background()
 
 	// Test with valid ID
-	mockRepo.On("DeleteByID", mock.Anything, 1).Return(nil)
+	mockRepo.On("DeleteByID", mock.Anything, int64(1)).Return(nil)
 	err := service.DeleteByID(ctx, 1)
 	assert.NoError(t, err)
-	mockRepo.AssertCalled(t, "DeleteByID", mock.Anything, 1)
+	mockRepo.AssertCalled(t, "DeleteByID", mock.Anything, int64(1))
 
 	// Test with invalid ID
 	err = service.DeleteByID(ctx, 0)
@@ -118,7 +117,7 @@ func TestUserService_Insert(t *testing.T) {
 
 	// Test user insertion
 	newUser := models.User{Email: "new@example.com", Password: "testpassword"}
-	expectedID := 1
+	expectedID := int64(1) 
 
 	mockRepo.On("Insert", mock.Anything, mock.AnythingOfType("models.User")).
 		Return(expectedID, nil).
@@ -224,7 +223,7 @@ func (m *MockUserRepo) GetAll(ctx context.Context) ([]*models.User, error) {
 	return args.Get(0).([]*models.User), args.Error(1)
 }
 
-func (m *MockUserRepo) GetById(ctx context.Context, id int) (*models.User, error) {
+func (m *MockUserRepo) GetByID(ctx context.Context, id int64) (*models.User, error) {
 	args := m.Called(ctx, id)
 	return args.Get(0).(*models.User), args.Error(1)
 }
@@ -239,12 +238,12 @@ func (m *MockUserRepo) Update(ctx context.Context, user models.User) error {
 	return args.Error(0)
 }
 
-func (m *MockUserRepo) DeleteByID(ctx context.Context, id int) error {
+func (m *MockUserRepo) DeleteByID(ctx context.Context, id int64) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)
 }
 
-func (m *MockUserRepo) Insert(ctx context.Context, user models.User) (int, error) {
+func (m *MockUserRepo) Insert(ctx context.Context, user models.User) (int64, error) {
 	args := m.Called(ctx, user)
-	return args.Int(0), args.Error(1)
+	return args.Get(0).(int64), args.Error(1)
 }

@@ -14,7 +14,7 @@ type UserAuthenticator interface {
 
 type UserFinder interface {
 	GetAll(ctx context.Context) ([]*models.User, error)
-	GetById(ctx context.Context, id int) (*models.User, error)
+	GetByID(ctx context.Context, id int) (*models.User, error)
 	GetByEmail(ctx context.Context, email string) (*models.User, error)
 }
 

@@ -31,7 +31,7 @@ func main() {
 	}
 
 	// Initialize the userRepo
-	userRepo := repositories.New(conn)
+	userRepo := repositories.NewUserRepo(conn)
 
   // Create the UserService with the userRepo
   userService := services.New(userRepo)

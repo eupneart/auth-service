@@ -23,7 +23,7 @@ func TestUserRepo_GetAll(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := New(db)
+	repo := NewUserRepo(db)
 
 	// Mock rows returned by the database
 	rows := sqlmock.NewRows([]string{
@@ -44,7 +44,7 @@ func TestUserRepo_GetAll(t *testing.T) {
 	// Assertions
 	require.NoError(t, err)
 	assert.Len(t, users, 2)
-	assert.Equal(t, 1, users[0].ID)
+	assert.Equal(t, int64(1), users[0].ID)
 	assert.Equal(t, "test@example.com", users[0].Email)
 	assert.Equal(t, "John", users[0].FirstName)
 	assert.Equal(t, "Doe", users[0].LastName)
@@ -52,13 +52,13 @@ func TestUserRepo_GetAll(t *testing.T) {
 	assert.True(t, users[0].IsActive)
 }
 
-func TestUserRepo_GetById(t *testing.T) {
+func TestUserRepo_GetByID(t *testing.T) {
 	// Mock DB setup
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := New(db)
+	repo := NewUserRepo(db)
 
 	// Mock row returned by the database
 	row := sqlmock.NewRows([]string{
@@ -74,11 +74,11 @@ func TestUserRepo_GetById(t *testing.T) {
 		WillReturnRows(row)
 
 	// Call method
-	user, err := repo.GetById(context.Background(), 1)
+	user, err := repo.GetByID(context.Background(), 1)
 
 	// Assertions
 	require.NoError(t, err)
-	assert.Equal(t, 1, user.ID)
+	assert.Equal(t, int64(1), user.ID)
 	assert.Equal(t, "test@example.com", user.Email)
 	assert.Equal(t, "John", user.FirstName)
 	assert.Equal(t, "Doe", user.LastName)
@@ -92,7 +92,7 @@ func TestUserRepo_GetByEmail(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := New(db)
+	repo := NewUserRepo(db)
 
 	// Mock row returned by the database
 	row := sqlmock.NewRows([]string{
@@ -112,7 +112,7 @@ func TestUserRepo_GetByEmail(t *testing.T) {
 
 	// Assertions
 	require.NoError(t, err)
-	assert.Equal(t, 1, user.ID)
+	assert.Equal(t, int64(1), user.ID)
 	assert.Equal(t, "test@example.com", user.Email)
 	assert.Equal(t, "John", user.FirstName)
 	assert.Equal(t, "Doe", user.LastName)
@@ -126,7 +126,7 @@ func TestUserRepo_Update(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := New(db)
+	repo := NewUserRepo(db)
 
 	// Mock user data
 	user := models.User{
@@ -166,7 +166,7 @@ func TestUserRepo_Update_PartialFields(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := New(db)
+	repo := NewUserRepo(db)
 
 	// Mock user data - only email and first_name set
 	user := models.User{
@@ -200,7 +200,7 @@ func TestUserRepo_DeleteByID(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := New(db)
+	repo := NewUserRepo(db)
 
 	// Expectations
 	mock.ExpectExec(regexp.QuoteMeta(
@@ -237,7 +237,7 @@ func TestUserRepo_Insert(t *testing.T) {
 	}
 
 	// Expected values
-	mockID := 123
+	mockID := int64(123)
 
 	// Prepare mock query
 	mock.ExpectQuery(`INSERT INTO users \(email, first_name, last_name, password, role, is_active, created_at, updated_at, last_login\) VALUES \(\$1, \$2, \$3, \$4, \$5, \$6, \$7, \$8, \$9\) RETURNING id`).
@@ -272,7 +272,7 @@ func TestUserRepo_Update_WithAdminRole(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	repo := New(db)
+	repo := NewUserRepo(db)
 
 	// Mock user data with admin role
 	user := models.User{

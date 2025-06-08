@@ -6,14 +6,24 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// Constants for token types and defaults
+const (
+	TokenTypeAccess  = "access"
+	TokenTypeRefresh = "refresh"
+
+	DefaultAccessTokenLifetime  = 15 * time.Minute
+	DefaultRefreshTokenLifetime = 7 * 24 * time.Hour // 7 days
+	DefaultTokenType            = "Bearer"
+)
+
 // Claims represents the JWT claims structure for both access and refresh tokens
 type Claims struct {
 	jwt.RegisteredClaims
 
 	// User-specific claims
-	UserID string   `json:"user_id"`
-	Email  string   `json:"email"`
-	Roles  []string `json:"roles"`
+	UserID int64  `json:"user_id"`
+	Email  string `json:"email"`
+	Role   string `json:"role"`
 
 	// Token-specific claims
 	TokenType string `json:"token_type"` // "access" or "refresh"
@@ -45,7 +55,7 @@ type TokenPair struct {
 // TokenMetadata represents additional token metadata for storage/tracking
 type TokenMetadata struct {
 	ID         string    `json:"id"`
-	UserID     string    `json:"user_id"`
+	UserID     int64     `json:"user_id"`
 	TokenType  string    `json:"token_type"`
 	DeviceID   string    `json:"device_id,omitempty"`
 	ClientID   string    `json:"client_id,omitempty"`
@@ -77,19 +87,9 @@ type TokenValidationResponse struct {
 
 // TokenPreferences represents user-specific token preferences
 type TokenPreferences struct {
-	UserID               string `json:"user_id"`
-	AccessTokenLifetime  int    `json:"access_token_lifetime"`  // in minutes
-	RefreshTokenLifetime int    `json:"refresh_token_lifetime"` // in hours
-	AllowMultipleDevices bool   `json:"allow_multiple_devices"`
-	MaxActiveSessions    int    `json:"max_active_sessions"`
+	UserID               int  `json:"user_id"`
+	AccessTokenLifetime  int  `json:"access_token_lifetime"`  // in minutes
+	RefreshTokenLifetime int  `json:"refresh_token_lifetime"` // in hours
+	AllowMultipleDevices bool `json:"allow_multiple_devices"`
+	MaxActiveSessions    int  `json:"max_active_sessions"`
 }
-
-// Constants for token types and defaults
-const (
-	TokenTypeAccess  = "access"
-	TokenTypeRefresh = "refresh"
-
-	DefaultAccessTokenLifetime  = 15 * time.Minute
-	DefaultRefreshTokenLifetime = 7 * 24 * time.Hour // 7 days
-	DefaultTokenType            = "Bearer"
-)

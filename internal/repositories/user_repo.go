@@ -19,13 +19,13 @@ type UserRepo struct {
 	DB *sql.DB
 }
 
-func New(db *sql.DB) *UserRepo {
+func NewUserRepo(db *sql.DB) *UserRepo {
 	return &UserRepo{DB: db}
 }
 
 // GetAll returns a slice of all users, sorted by last name
 func (r *UserRepo) GetAll(ctx context.Context) ([]*models.User, error) {
-  query := fmt.Sprintf(`SELECT %s FROM users ORDER BY last_name`, userColumns)
+	query := fmt.Sprintf(`SELECT %s FROM users ORDER BY last_name`, userColumns)
 
 	// Execute query
 	rows, err := r.DB.QueryContext(ctx, query)
@@ -38,12 +38,12 @@ func (r *UserRepo) GetAll(ctx context.Context) ([]*models.User, error) {
 	}
 	defer rows.Close()
 
-  return scanUsers(rows)
+	return scanUsers(rows)
 }
 
 // GetById returns one user by id
-func (r *UserRepo) GetById(ctx context.Context, id int) (*models.User, error) {
-  query := fmt.Sprintf(`SELECT %s FROM users WHERE id = $1`, userColumns)
+func (r *UserRepo) GetByID(ctx context.Context, id int64) (*models.User, error) {
+	query := fmt.Sprintf(`SELECT %s FROM users WHERE id = $1`, userColumns)
 
 	row := r.DB.QueryRowContext(ctx, query, id)
 
@@ -62,7 +62,7 @@ func (r *UserRepo) GetById(ctx context.Context, id int) (*models.User, error) {
 
 // GetByEmail returns one user by email
 func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*models.User, error) {
-  query := fmt.Sprintf(`SELECT %s FROM users WHERE email = $1`, userColumns)
+	query := fmt.Sprintf(`SELECT %s FROM users WHERE email = $1`, userColumns)
 
 	row := r.DB.QueryRowContext(ctx, query, email)
 
@@ -87,15 +87,15 @@ func (r *UserRepo) Update(ctx context.Context, u models.User) error {
 		isSet bool        // Whether the field should be included in the query
 	}
 
-  // Define the fields to be updated
-  fields := []field{
-    {"email", u.Email, u.Email != ""},
-    {"first_name", u.FirstName, u.FirstName != ""},
-    {"last_name", u.LastName, u.LastName != ""},
-    {"role", u.Role, u.Role != ""},
-    {"is_active", u.IsActive, true}, // is_active field will always be included
-    {"last_login", u.LastLogin, u.LastLogin != time.Time{}},
-  }
+	// Define the fields to be updated
+	fields := []field{
+		{"email", u.Email, u.Email != ""},
+		{"first_name", u.FirstName, u.FirstName != ""},
+		{"last_name", u.LastName, u.LastName != ""},
+		{"role", u.Role, u.Role != ""},
+		{"is_active", u.IsActive, true}, // is_active field will always be included
+		{"last_login", u.LastLogin, u.LastLogin != time.Time{}},
+	}
 
 	// Base query
 	query := "UPDATE users SET"
@@ -135,7 +135,7 @@ func (r *UserRepo) Update(ctx context.Context, u models.User) error {
 }
 
 // DeleteByID one user from the database, by ID
-func (r *UserRepo) DeleteByID(ctx context.Context, id int) error {
+func (r *UserRepo) DeleteByID(ctx context.Context, id int64) error {
 	stmt := `DELETE FROM users WHERE id = $1`
 
 	_, err := r.DB.ExecContext(ctx, stmt, id)
@@ -152,25 +152,24 @@ func (r *UserRepo) DeleteByID(ctx context.Context, id int) error {
 }
 
 // Insert a single user into the DB
-func (r *UserRepo) Insert(ctx context.Context, u models.User) (int, error) {
+func (r *UserRepo) Insert(ctx context.Context, u models.User) (int64, error) {
 	// sql statement
-  stmt := `INSERT INTO users (email, first_name, last_name, password, role, is_active, created_at, updated_at, last_login) 
+	stmt := `INSERT INTO users (email, first_name, last_name, password, role, is_active, created_at, updated_at, last_login) 
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`
 
 	// execute sql statement
-	var newId int
-  err := r.DB.QueryRowContext(ctx, stmt,
+	var newId int64
+	err := r.DB.QueryRowContext(ctx, stmt,
 		u.Email,
 		u.FirstName,
 		u.LastName,
 		u.Password,
-    u.Role,
+		u.Role,
 		u.IsActive,
 		time.Now(),
 		time.Now(),
-    time.Now(),
+		time.Now(),
 	).Scan(&newId)
-
 	if err != nil {
 		slog.Error("failed to insert user",
 			"error", err,
@@ -183,10 +182,10 @@ func (r *UserRepo) Insert(ctx context.Context, u models.User) (int, error) {
 	return newId, nil
 }
 
-//========================= Helper functions ============================
+// ========================= Helper functions ============================
 // scanUsers is a helper function to scan multiple rows into a slice of User structs.
 func scanUsers(rows *sql.Rows) ([]*models.User, error) {
-  var users []*models.User
+	var users []*models.User
 	for rows.Next() {
 		var usr models.User
 		// Scan the current row into the usr struct
@@ -196,11 +195,11 @@ func scanUsers(rows *sql.Rows) ([]*models.User, error) {
 			&usr.FirstName,
 			&usr.LastName,
 			&usr.Password,
-      &usr.Role,
+			&usr.Role,
 			&usr.IsActive,
 			&usr.CreatedAt,
 			&usr.UpdatedAt,
-      &usr.LastLogin,
+			&usr.LastLogin,
 		); err != nil {
 			slog.Error("failed to scan user row",
 				"error", err,
@@ -219,30 +218,30 @@ func scanUsers(rows *sql.Rows) ([]*models.User, error) {
 		return nil, fmt.Errorf("scanning users: %w", err)
 	}
 
-  return users, nil
+	return users, nil
 }
 
 // scanUser is a helper function to scan a single row into a User struct.
 func scanUser(row *sql.Row) (*models.User, error) {
-  var usr models.User
-  err := row.Scan(
+	var usr models.User
+	err := row.Scan(
 		&usr.ID,
 		&usr.Email,
 		&usr.FirstName,
 		&usr.LastName,
 		&usr.Password,
-    &usr.Role,
+		&usr.Role,
 		&usr.IsActive,
 		&usr.CreatedAt,
 		&usr.UpdatedAt,
 		&usr.LastLogin,
 	)
-  if err != nil {
-	slog.Error("failed to scan user",
-		"error", err,
-		"method", "scanUser")
-    return nil, err
-  }
+	if err != nil {
+		slog.Error("failed to scan user",
+			"error", err,
+			"method", "scanUser")
+		return nil, err
+	}
 
-  return &usr, nil
+	return &usr, nil
 }
