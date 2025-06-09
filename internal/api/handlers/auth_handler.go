@@ -160,22 +160,18 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Validate input
-	if requestPayload.Email == "" || requestPayload.Password == "" ||
-		requestPayload.FirstName == "" || requestPayload.LastName == "" {
-		slog.Warn("registration attempt with missing required fields",
+	err = utils.ValidateRegistrationInput(
+		requestPayload.FirstName,
+		requestPayload.LastName,
+		requestPayload.Email,
+		requestPayload.Password,
+	)
+	if err != nil {
+		slog.Warn("registration validation failed",
+			"error", err.Error(),
 			"method", "AuthHandler.Register",
 			"remote_addr", r.RemoteAddr)
-		utils.ErrorJSON(w, errors.New("all fields are required"), http.StatusBadRequest)
-		return
-	}
-
-	// Additional password validation
-	if len(requestPayload.Password) < 8 {
-		slog.Warn("registration attempt with weak password",
-			"email", requestPayload.Email,
-			"method", "AuthHandler.Register",
-			"remote_addr", r.RemoteAddr)
-		utils.ErrorJSON(w, errors.New("password must be at least 8 characters long"), http.StatusBadRequest)
+		utils.ErrorJSON(w, err, http.StatusBadRequest)
 		return
 	}
 
