@@ -1,2 +1,2 @@
 # auth-service
-The authorisation service of MAYArt project
+The authorisation service of EupneArt project
