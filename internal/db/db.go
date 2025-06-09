@@ -3,14 +3,15 @@ package db
 import (
 	"database/sql"
 	"log"
-	"os"
 	"time"
+
+	"github.com/eupneart/auth-service/pkg/env"
 )
 
 const maxRetries = 10
 
-func ConnectToDB() *sql.DB {
-	dsn := os.Getenv("DSN")
+func ConnectToDB(cfg *env.EnvConfig) *sql.DB {
+	dsn := cfg.ToDSN() 
 
 	for retries := 0; retries < maxRetries; retries++ {
 		connection, err := openDB(dsn)

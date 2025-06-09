@@ -24,8 +24,8 @@ func (s *Server) Routes() http.Handler {
 
   mux.Use(middleware.Heartbeat("/ping"))
 
-  // create auth handler
-  authHandler := handlers.NewAuthHandler(s.UserService) 
+  // create auth handler with both UserService and TokenService
+	authHandler := handlers.NewAuthHandler(s.UserService, s.TokenService)
 
   mux.Post("/authenticate", authHandler.Authenticate)
   mux.Post("/register", authHandler.Register)

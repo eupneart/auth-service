@@ -42,7 +42,8 @@ coverage.out
 
 # env files
 .env
-.env.*
+.env.production
+.env.development
 
 # Application-specific files
 notes.txt

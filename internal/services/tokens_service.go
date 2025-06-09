@@ -141,9 +141,9 @@ func (s *tokenService) GenerateTokens(ctx context.Context, user *models.User) (a
 }
 
 // ValidateToken verifies a token and returns its claims if valid
-func (s *tokenService) ValidateToken(ctx context.Context, tokenString string) (*models.Claims, error) {
+func (s *tokenService) ValidateToken(ctx context.Context, tokenStr string) (*models.Claims, error) {
 	// Parse and validate token
-	token, err := jwt.ParseWithClaims(tokenString, &models.Claims{}, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.ParseWithClaims(tokenStr, &models.Claims{}, func(token *jwt.Token) (interface{}, error) {
 		// Validate signing method
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -275,9 +275,9 @@ func (s *tokenService) RefreshAccessToken(ctx context.Context, refreshToken stri
 }
 
 // RevokeToken invalidates a token (for blacklisting)
-func (s *tokenService) RevokeToken(ctx context.Context, tokenString string) error {
+func (s *tokenService) RevokeToken(ctx context.Context, tokenStr string) error {
 	// Parse token to get ID
-	claims, err := s.parseTokenWithoutValidation(tokenString)
+	claims, err := s.parseTokenWithoutValidation(tokenStr)
 	if err != nil {
 		s.logger.Error("Failed to parse token for revocation", slog.String("error", err.Error()))
 		return fmt.Errorf("failed to parse token for revocation: %w", err)

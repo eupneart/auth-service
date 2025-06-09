@@ -27,9 +27,9 @@ type UserModifier interface {
 // Interface for tokens service business logic operations
 type TokenService interface {
 	GenerateTokens(ctx context.Context, user *models.User) (accessToken, refreshToken string, err error)
-	ValidateToken(ctx context.Context, token string) (*models.Claims, error)
+	ValidateToken(ctx context.Context, tokenStr string) (*models.Claims, error)
 	RefreshAccessToken(ctx context.Context, refreshToken string) (accessToken string, err error)
-	RevokeToken(ctx context.Context, token string) error
+	RevokeToken(ctx context.Context, tokenStr string) error
   GetTokenMetadata(ctx context.Context, tokenID string) (*models.TokenMetadata, error)
 	IsTokenRevoked(ctx context.Context, tokenID string) (bool, error)
 	RevokeAllTokensForUser(ctx context.Context, userID string) error

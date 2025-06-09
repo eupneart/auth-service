@@ -10,12 +10,14 @@ import (
 type Server struct {
   Settings *env.EnvConfig
   UserService *services.UserService
+  TokenService services.TokenService
 }
 
-func NewServer(settings *env.EnvConfig, userService *services.UserService) *Server {
+func NewServer(settings *env.EnvConfig, userService *services.UserService, tokenService services.TokenService) *Server {
   return &Server{
     Settings: settings,
     UserService: userService,
+    TokenService: tokenService,
   }
 }
 

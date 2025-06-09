@@ -2,8 +2,11 @@ FROM alpine:latest
 
 RUN mkdir /app
 
-COPY ./bin/authApp /app
+COPY ./bin/authApp /app/
+COPY .env.development /app/.env.development
 
-COPY .env /app/.env
+ENV APP_ENV=development
 
-CMD [ "/app/authApp" ]
+WORKDIR /app
+
+CMD ["/app/authApp"]
