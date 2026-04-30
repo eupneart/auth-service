@@ -95,13 +95,17 @@ func TestLoadEnv_EnvironmentSpecificFiles(t *testing.T) {
 	// Test that different APP_ENV values attempt to load different .env files
 	t.Setenv("APP_ENV", "production")
 	t.Setenv("DB_HOST", "prod-host")
-	t.Setenv("JWT_SECRET", "test-secret") // Prevent log.Fatal in production
+	t.Setenv("DB_PASSWORD", "prod-pass")
+	t.Setenv("DB_NAME", "prod-db")
+	t.Setenv("JWT_SECRET", "test-secret")
 	
 	// Load environment (will try to load .env.production but fall back to env vars)
 	LoadEnv()
 	
 	assert.Equal(t, "production", Config.AppEnv)
 	assert.Equal(t, "prod-host", Config.DBHost)
+	assert.Equal(t, "prod-pass", Config.DBPassword)
+	assert.Equal(t, "prod-db", Config.DBName)
 }
 
 func TestLoadEnv_DevelopmentAutoGeneratesSecret(t *testing.T) {
@@ -134,6 +138,52 @@ func TestLoadEnv_DevelopmentWithProvidedSecret(t *testing.T) {
 	
 	// Verify provided secret is used
 	assert.Equal(t, "my-custom-secret", Config.JWTSecret)
+}
+
+func TestLoadEnv_ProductionRequiredVars(t *testing.T) {
+	// Clean before test
+	cleanupEnvVars()
+	defer cleanupEnvVars()
+	
+	// Test production environment with all required variables set
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("DB_HOST", "prod-db-host")
+	t.Setenv("DB_PASSWORD", "prod-db-password")
+	t.Setenv("DB_NAME", "prod-db-name")
+	t.Setenv("JWT_SECRET", "prod-jwt-secret")
+
+	LoadEnv()
+
+	// Verify required vars are loaded
+	assert.Equal(t, "prod-db-host", Config.DBHost)
+	assert.Equal(t, "prod-db-password", Config.DBPassword)
+	assert.Equal(t, "prod-db-name", Config.DBName)
+	assert.Equal(t, "prod-jwt-secret", Config.JWTSecret)
+	// Optional vars still get defaults
+	assert.Equal(t, "5432", Config.DBPort)
+	assert.Equal(t, "postgres", Config.DBUser)
+}
+
+func TestLoadEnv_ProductionWithOptionalDefaults(t *testing.T) {
+	// Clean before test
+	cleanupEnvVars()
+	defer cleanupEnvVars()
+	
+	// Test production environment with only required variables
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("DB_HOST", "prod-host")
+	t.Setenv("DB_PASSWORD", "prod-pass")
+	t.Setenv("DB_NAME", "prod-db")
+	t.Setenv("JWT_SECRET", "prod-secret")
+	// Do NOT set DB_PORT and DB_USER - should use defaults
+
+	LoadEnv()
+
+	// Verify defaults are used for optional vars
+	assert.Equal(t, "5432", Config.DBPort)
+	assert.Equal(t, "postgres", Config.DBUser)
+	assert.Equal(t, "8080", Config.AppPort)
+	assert.Equal(t, "eupneart-auth-service", Config.JWTIssuer)
 }
 
 func TestGetEnvAsInt_ValidInteger(t *testing.T) {
@@ -186,7 +236,10 @@ func TestIsProduction(t *testing.T) {
 	
 	// Test production environment
 	t.Setenv("APP_ENV", "production")
-	t.Setenv("JWT_SECRET", "test-secret")
+	t.Setenv("DB_HOST", "prod-host")
+	t.Setenv("DB_PASSWORD", "prod-pass")
+	t.Setenv("DB_NAME", "prod-db")
+	t.Setenv("JWT_SECRET", "prod-secret")
 	LoadEnv()
 	assert.True(t, IsProduction())
 	assert.False(t, IsDevelopment())
@@ -217,7 +270,10 @@ func TestIsDevelopment(t *testing.T) {
 	// Test non-development environment
 	cleanupEnvVars()
 	t.Setenv("APP_ENV", "production")
-	t.Setenv("JWT_SECRET", "test-secret")
+	t.Setenv("DB_HOST", "prod-host")
+	t.Setenv("DB_PASSWORD", "prod-pass")
+	t.Setenv("DB_NAME", "prod-db")
+	t.Setenv("JWT_SECRET", "prod-secret")
 	LoadEnv()
 	assert.False(t, IsDevelopment())
 }

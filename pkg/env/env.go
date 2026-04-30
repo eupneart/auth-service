@@ -42,23 +42,47 @@ func LoadEnv() *EnvConfig {
 	appEnv := getEnv("APP_ENV", "development")
 	isProduction := appEnv == "production"
 
-	// Handle JWT secret: require in production, auto-generate in development
-	jwtSecret := getEnv("JWT_SECRET", "")
-	if jwtSecret == "" {
-		if isProduction {
-			log.Fatal("JWT_SECRET must be set in production environment")
+	// Load configuration based on environment
+	var (
+		dbHost     string
+		dbPort     string
+		dbUser     string
+		dbPassword string
+		dbName     string
+		jwtSecret  string
+	)
+
+	if isProduction {
+		// Production: require critical variables
+		dbHost = getEnvRequired("DB_HOST")
+		dbPassword = getEnvRequired("DB_PASSWORD")
+		dbName = getEnvRequired("DB_NAME")
+		jwtSecret = getEnvRequired("JWT_SECRET")
+		// Optional with defaults in production
+		dbPort = getEnv("DB_PORT", "5432")
+		dbUser = getEnv("DB_USER", "postgres")
+	} else {
+		// Development: all optional with defaults, except JWT_SECRET (auto-generate if missing)
+		dbHost = getEnv("DB_HOST", "localhost")
+		dbPort = getEnv("DB_PORT", "5432")
+		dbUser = getEnv("DB_USER", "postgres")
+		dbPassword = getEnv("DB_PASSWORD", "")
+		dbName = getEnv("DB_NAME", "auth_db")
+
+		// Auto-generate random secret for development if not set
+		jwtSecret = getEnv("JWT_SECRET", "")
+		if jwtSecret == "" {
+			jwtSecret = generateRandomSecret(32)
+			log.Printf("[INFO] Generated random JWT secret for development")
 		}
-		// Auto-generate random secret for development
-		jwtSecret = generateRandomSecret(32)
-		log.Printf("[INFO] Generated random JWT secret for development")
 	}
 
 	Config = &EnvConfig{
-		DBHost:     getEnv("DB_HOST", "localhost"),
-		DBPort:     getEnv("DB_PORT", "5432"),
-		DBUser:     getEnv("DB_USER", "postgres"),
-		DBPassword: getEnv("DB_PASSWORD", ""), // Fixed: was DB_PASS, should be DB_PASSWORD
-		DBName:     getEnv("DB_NAME", "auth_db"),
+		DBHost:     dbHost,
+		DBPort:     dbPort,
+		DBUser:     dbUser,
+		DBPassword: dbPassword,
+		DBName:     dbName,
 		JWTSecret:  jwtSecret,
 		JWTIssuer:  getEnv("JWT_ISSUER", "eupneart-auth-service"),
 		AppPort:    getEnv("APP_PORT", "8080"),
@@ -73,6 +97,16 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// getEnvRequired retrieves a required environment variable
+// Fails fast if the variable is not set (typically used for production)
+func getEnvRequired(key string) string {
+	if value, exists := os.LookupEnv(key); exists && value != "" {
+		return value
+	}
+	log.Fatalf("required environment variable %s is not set", key)
+	return ""
 }
 
 // generateRandomSecret generates a cryptographically secure random secret
