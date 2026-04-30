@@ -41,6 +41,7 @@ func TestLoadEnv_ValidEnvVars(t *testing.T) {
 func TestLoadEnv_DefaultValues(t *testing.T) {
 	// Clear any existing environment variables before the test
 	cleanupEnvVars()
+	os.Setenv("APP_ENV", "development")
 
 	// Load environment variables (which should fall back to defaults)
 	LoadEnv()
@@ -51,7 +52,9 @@ func TestLoadEnv_DefaultValues(t *testing.T) {
 	assert.Equal(t, "postgres", Config.DBUser)
 	assert.Equal(t, "", Config.DBPassword)
 	assert.Equal(t, "auth_db", Config.DBName)
-	assert.Equal(t, "defaultsecret", Config.JWTSecret)
+	// JWT_SECRET should be auto-generated in development, not a default
+	assert.NotEmpty(t, Config.JWTSecret)
+	assert.NotEqual(t, "defaultsecret", Config.JWTSecret)
 	assert.Equal(t, "eupneart-auth-service", Config.JWTIssuer)
 	assert.Equal(t, "8080", Config.AppPort)
 	assert.Equal(t, "development", Config.AppEnv)
@@ -60,6 +63,7 @@ func TestLoadEnv_DefaultValues(t *testing.T) {
 func TestLoadEnv_MissingEnvFile(t *testing.T) {
 	// Clear any existing environment variables to simulate the missing .env file scenario
 	cleanupEnvVars()
+	os.Setenv("APP_ENV", "development")
 
 	// Load environment variables
 	LoadEnv()
@@ -70,7 +74,9 @@ func TestLoadEnv_MissingEnvFile(t *testing.T) {
 	assert.Equal(t, "postgres", Config.DBUser)
 	assert.Equal(t, "", Config.DBPassword)
 	assert.Equal(t, "auth_db", Config.DBName)
-	assert.Equal(t, "defaultsecret", Config.JWTSecret)
+	// JWT_SECRET should be auto-generated in development
+	assert.NotEmpty(t, Config.JWTSecret)
+	assert.NotEqual(t, "defaultsecret", Config.JWTSecret)
 	assert.Equal(t, "eupneart-auth-service", Config.JWTIssuer)
 	assert.Equal(t, "8080", Config.AppPort)
 	assert.Equal(t, "development", Config.AppEnv)
@@ -91,6 +97,32 @@ func TestLoadEnv_EnvironmentSpecificFiles(t *testing.T) {
 	
 	// Clean up
 	cleanupEnvVars()
+}
+
+func TestLoadEnv_DevelopmentAutoGeneratesSecret(t *testing.T) {
+	// This test verifies that development environment auto-generates JWT_SECRET
+	cleanupEnvVars()
+	os.Setenv("APP_ENV", "development")
+	
+	LoadEnv()
+	
+	// Verify JWT_SECRET is generated and not empty
+	assert.NotEmpty(t, Config.JWTSecret)
+	assert.NotEqual(t, "defaultsecret", Config.JWTSecret)
+	// Base64 encoded 32 bytes should be around 43-44 characters
+	assert.Greater(t, len(Config.JWTSecret), 30)
+}
+
+func TestLoadEnv_DevelopmentWithProvidedSecret(t *testing.T) {
+	// This test verifies that provided JWT_SECRET is used in development
+	cleanupEnvVars()
+	os.Setenv("APP_ENV", "development")
+	os.Setenv("JWT_SECRET", "my-custom-secret")
+	
+	LoadEnv()
+	
+	// Verify provided secret is used
+	assert.Equal(t, "my-custom-secret", Config.JWTSecret)
 }
 
 func TestGetEnvAsInt_ValidInteger(t *testing.T) {

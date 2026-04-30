@@ -1,6 +1,8 @@
 package env
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"log"
 	"os"
@@ -36,16 +38,31 @@ func LoadEnv() *EnvConfig {
 		log.Printf("[INFO] No %s file found, using system environment variables", envFile)
 	}
 
+	// Determine app environment
+	appEnv := getEnv("APP_ENV", "development")
+	isProduction := appEnv == "production"
+
+	// Handle JWT secret: require in production, auto-generate in development
+	jwtSecret := getEnv("JWT_SECRET", "")
+	if jwtSecret == "" {
+		if isProduction {
+			log.Fatal("JWT_SECRET must be set in production environment")
+		}
+		// Auto-generate random secret for development
+		jwtSecret = generateRandomSecret(32)
+		log.Printf("[INFO] Generated random JWT secret for development")
+	}
+
 	Config = &EnvConfig{
 		DBHost:     getEnv("DB_HOST", "localhost"),
 		DBPort:     getEnv("DB_PORT", "5432"),
 		DBUser:     getEnv("DB_USER", "postgres"),
 		DBPassword: getEnv("DB_PASSWORD", ""), // Fixed: was DB_PASS, should be DB_PASSWORD
 		DBName:     getEnv("DB_NAME", "auth_db"),
-		JWTSecret:  getEnv("JWT_SECRET", "defaultsecret"),
+		JWTSecret:  jwtSecret,
 		JWTIssuer:  getEnv("JWT_ISSUER", "eupneart-auth-service"),
 		AppPort:    getEnv("APP_PORT", "8080"),
-		AppEnv:     getEnv("APP_ENV", "development"),
+		AppEnv:     appEnv,
 	}
 
   log.Print(Config)
@@ -58,6 +75,15 @@ func getEnv(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// generateRandomSecret generates a cryptographically secure random secret
+func generateRandomSecret(length int) string {
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		log.Fatalf("failed to generate random secret: %v", err)
+	}
+	return base64.StdEncoding.EncodeToString(bytes)
 }
 
 // GetEnvAsInt gets an environment variable as integer with fallback

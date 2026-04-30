@@ -37,14 +37,6 @@ func main() {
 		slog.String("app_env", cfg.AppEnv),
 		slog.String("app_port", cfg.AppPort))
 
-	// Validate JWT secret
-	if cfg.JWTSecret == "defaultsecret" {
-		logger.Warn("Using default JWT secret - this MUST be changed in production!")
-		if env.IsProduction() {
-			log.Panic("Default JWT secret is not allowed in production!")
-		}
-	}
-
 	// Connect to DB
 	conn := db.ConnectToDB(cfg)
 	if conn == nil {
