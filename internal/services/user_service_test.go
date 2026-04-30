@@ -163,6 +163,19 @@ func TestUserService_ResetPassword(t *testing.T) {
 	mockRepo.AssertCalled(t, "Update", mock.Anything, mock.AnythingOfType("models.User"))
 }
 
+func TestUserService_ResetPassword_EmptyPassword(t *testing.T) {
+	mockRepo := new(MockUserRepo)
+	service := New(mockRepo)
+
+	ctx := context.Background()
+	user := &models.User{ID: 1, Password: ""}
+
+	err := service.ResetPassword(ctx, user)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "password cannot be empty")
+	mockRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+}
+
 func TestUserService_PasswordMatches(t *testing.T) {
 	service := New(nil) // No repo needed for this test
 

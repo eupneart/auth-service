@@ -198,6 +198,14 @@ func (s *UserService) Insert(ctx context.Context, u models.User) (int64, error) 
 
 // ResetPassword is the method used to change a user's password.
 func (s *UserService) ResetPassword(ctx context.Context, user *models.User) error {
+	if user == nil {
+		return fmt.Errorf("user cannot be nil")
+	}
+
+	if user.Password == "" {
+		return fmt.Errorf("password cannot be empty")
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
 	
