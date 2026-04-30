@@ -21,7 +21,7 @@ type TokenStore interface {
 	IsTokenRevoked(ctx context.Context, tokenID string) (bool, error)
 	RevokeToken(ctx context.Context, tokenID string) error
 	RevokeTokenByID(ctx context.Context, tokenID string) error
-	RevokeAllTokensForUser(ctx context.Context, userID string) error
+	RevokeAllTokensForUser(ctx context.Context, userID int64) error
 	UpdateLastUsed(ctx context.Context, tokenID string) error
 	CleanupExpiredTokens(ctx context.Context) error
 	GetAllTokensForUser(ctx context.Context, userID string) ([]models.TokenMetadata, error)

@@ -157,7 +157,7 @@ func (r *TokenRepo) RevokeTokenByID(ctx context.Context, tokenID string) error {
 }
 
 // RevokeAllTokensForUser revokes all tokens for a specific user
-func (r *TokenRepo) RevokeAllTokensForUser(ctx context.Context, userID string) error {
+func (r *TokenRepo) RevokeAllTokensForUser(ctx context.Context, userID int64) error {
 	stmt := `UPDATE token_metadata SET is_revoked = true WHERE user_id = $1 AND is_revoked = false`
 
 	result, err := r.DB.ExecContext(ctx, stmt, userID)

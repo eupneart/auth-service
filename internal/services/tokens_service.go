@@ -328,18 +328,18 @@ func (s *tokenService) IsTokenRevoked(ctx context.Context, tokenID string) (bool
 }
 
 // RevokeAllTokensForUser invalidates all tokens for a specific user
-func (s *tokenService) RevokeAllTokensForUser(ctx context.Context, userID string) error {
-	s.logger.Info("Revoking all tokens for user", slog.String("user_id", userID))
+func (s *tokenService) RevokeAllTokensForUser(ctx context.Context, userID int64) error {
+	s.logger.Info("Revoking all tokens for user", slog.Int64("user_id", userID))
 
 	err := s.store.RevokeAllTokensForUser(ctx, userID)
 	if err != nil {
 		s.logger.Error("Failed to revoke all tokens for user",
-			slog.String("user_id", userID),
+			slog.Int64("user_id", userID),
 			slog.String("error", err.Error()))
 		return err
 	}
 
-	s.logger.Info("Successfully revoked all tokens for user", slog.String("user_id", userID))
+	s.logger.Info("Successfully revoked all tokens for user", slog.Int64("user_id", userID))
 	return nil
 }
 
