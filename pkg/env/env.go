@@ -65,8 +65,6 @@ func LoadEnv() *EnvConfig {
 		AppEnv:     appEnv,
 	}
 
-  log.Print(Config)
-
 	return Config
 }
 

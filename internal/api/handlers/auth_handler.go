@@ -62,6 +62,15 @@ func (h *AuthHandler) Authenticate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if user == nil {
+		slog.Error("retrieved user is nil",
+			"email", requestPayload.Email,
+			"method", "AuthHandler.Authenticate",
+			"remote_addr", r.RemoteAddr)
+		utils.ErrorJSON(w, errors.New("invalid credentials"), http.StatusUnauthorized)
+		return
+	}
+
 	// Check if user is active
 	if !user.IsActive {
 		slog.Warn("authentication attempt for inactive user",
@@ -214,6 +223,15 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		slog.Error("failed to retrieve newly created user",
 			"error", err,
+			"user_id", newUserID,
+			"method", "AuthHandler.Register",
+			"remote_addr", r.RemoteAddr)
+		utils.ErrorJSON(w, errors.New("failed to complete user registration"), http.StatusInternalServerError)
+		return
+	}
+
+	if newUser == nil {
+		slog.Error("retrieved user is nil after creation",
 			"user_id", newUserID,
 			"method", "AuthHandler.Register",
 			"remote_addr", r.RemoteAddr)

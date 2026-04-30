@@ -9,16 +9,20 @@ import (
 )
 
 func TestLoadEnv_ValidEnvVars(t *testing.T) {
+	// Clean before test
+	cleanupEnvVars()
+	defer cleanupEnvVars()
+	
 	// Set the environment variables for this test
-	os.Setenv("DB_HOST", "testhost")
-	os.Setenv("DB_PORT", "5433")
-	os.Setenv("DB_USER", "testuser")
-	os.Setenv("DB_PASSWORD", "testpass") // Updated from DB_PASS
-	os.Setenv("DB_NAME", "testdb")
-	os.Setenv("JWT_SECRET", "testsecret")
-	os.Setenv("JWT_ISSUER", "test-issuer")
-	os.Setenv("APP_PORT", "9090")
-	os.Setenv("APP_ENV", "testing")
+	t.Setenv("DB_HOST", "testhost")
+	t.Setenv("DB_PORT", "5433")
+	t.Setenv("DB_USER", "testuser")
+	t.Setenv("DB_PASSWORD", "testpass") // Updated from DB_PASS
+	t.Setenv("DB_NAME", "testdb")
+	t.Setenv("JWT_SECRET", "testsecret")
+	t.Setenv("JWT_ISSUER", "test-issuer")
+	t.Setenv("APP_PORT", "9090")
+	t.Setenv("APP_ENV", "testing")
 
 	// Load the environment
 	LoadEnv()
@@ -33,15 +37,14 @@ func TestLoadEnv_ValidEnvVars(t *testing.T) {
 	assert.Equal(t, "test-issuer", Config.JWTIssuer)
 	assert.Equal(t, "9090", Config.AppPort)
 	assert.Equal(t, "testing", Config.AppEnv)
-
-	// Clean up after test
-	cleanupEnvVars()
 }
 
 func TestLoadEnv_DefaultValues(t *testing.T) {
-	// Clear any existing environment variables before the test
+	// Clean before test
 	cleanupEnvVars()
-	os.Setenv("APP_ENV", "development")
+	defer cleanupEnvVars()
+	
+	t.Setenv("APP_ENV", "development")
 
 	// Load environment variables (which should fall back to defaults)
 	LoadEnv()
@@ -61,9 +64,11 @@ func TestLoadEnv_DefaultValues(t *testing.T) {
 }
 
 func TestLoadEnv_MissingEnvFile(t *testing.T) {
-	// Clear any existing environment variables to simulate the missing .env file scenario
+	// Clean before test
 	cleanupEnvVars()
-	os.Setenv("APP_ENV", "development")
+	defer cleanupEnvVars()
+	
+	t.Setenv("APP_ENV", "development")
 
 	// Load environment variables
 	LoadEnv()
@@ -83,26 +88,29 @@ func TestLoadEnv_MissingEnvFile(t *testing.T) {
 }
 
 func TestLoadEnv_EnvironmentSpecificFiles(t *testing.T) {
-	// Test that different APP_ENV values attempt to load different .env files
+	// Clean before test
+	cleanupEnvVars()
+	defer cleanupEnvVars()
 	
-	// Set APP_ENV to production
-	os.Setenv("APP_ENV", "production")
-	os.Setenv("DB_HOST", "prod-host")
+	// Test that different APP_ENV values attempt to load different .env files
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("DB_HOST", "prod-host")
+	t.Setenv("JWT_SECRET", "test-secret") // Prevent log.Fatal in production
 	
 	// Load environment (will try to load .env.production but fall back to env vars)
 	LoadEnv()
 	
 	assert.Equal(t, "production", Config.AppEnv)
 	assert.Equal(t, "prod-host", Config.DBHost)
-	
-	// Clean up
-	cleanupEnvVars()
 }
 
 func TestLoadEnv_DevelopmentAutoGeneratesSecret(t *testing.T) {
-	// This test verifies that development environment auto-generates JWT_SECRET
+	// Clean before test
 	cleanupEnvVars()
-	os.Setenv("APP_ENV", "development")
+	defer cleanupEnvVars()
+	
+	// This test verifies that development environment auto-generates JWT_SECRET
+	t.Setenv("APP_ENV", "development")
 	
 	LoadEnv()
 	
@@ -114,10 +122,13 @@ func TestLoadEnv_DevelopmentAutoGeneratesSecret(t *testing.T) {
 }
 
 func TestLoadEnv_DevelopmentWithProvidedSecret(t *testing.T) {
-	// This test verifies that provided JWT_SECRET is used in development
+	// Clean before test
 	cleanupEnvVars()
-	os.Setenv("APP_ENV", "development")
-	os.Setenv("JWT_SECRET", "my-custom-secret")
+	defer cleanupEnvVars()
+	
+	// This test verifies that provided JWT_SECRET is used in development
+	t.Setenv("APP_ENV", "development")
+	t.Setenv("JWT_SECRET", "my-custom-secret")
 	
 	LoadEnv()
 	
@@ -126,21 +137,17 @@ func TestLoadEnv_DevelopmentWithProvidedSecret(t *testing.T) {
 }
 
 func TestGetEnvAsInt_ValidInteger(t *testing.T) {
-	os.Setenv("TEST_INT", "42")
+	t.Setenv("TEST_INT", "42")
 	
 	result := GetEnvAsInt("TEST_INT", 10)
 	assert.Equal(t, 42, result)
-	
-	os.Unsetenv("TEST_INT")
 }
 
 func TestGetEnvAsInt_InvalidInteger(t *testing.T) {
-	os.Setenv("TEST_INT", "not-a-number")
+	t.Setenv("TEST_INT", "not-a-number")
 	
 	result := GetEnvAsInt("TEST_INT", 10)
 	assert.Equal(t, 10, result) // Should return default value
-	
-	os.Unsetenv("TEST_INT")
 }
 
 func TestGetEnvAsInt_MissingEnvVar(t *testing.T) {
@@ -151,23 +158,19 @@ func TestGetEnvAsInt_MissingEnvVar(t *testing.T) {
 }
 
 func TestGetEnvAsDuration_ValidDuration(t *testing.T) {
-	os.Setenv("TEST_DURATION", "30m")
+	t.Setenv("TEST_DURATION", "30m")
 	
 	result := GetEnvAsDuration("TEST_DURATION", "15m")
 	expected, _ := time.ParseDuration("30m")
 	assert.Equal(t, expected, result)
-	
-	os.Unsetenv("TEST_DURATION")
 }
 
 func TestGetEnvAsDuration_InvalidDuration(t *testing.T) {
-	os.Setenv("TEST_DURATION", "invalid-duration")
+	t.Setenv("TEST_DURATION", "invalid-duration")
 	
 	result := GetEnvAsDuration("TEST_DURATION", "15m")
 	expected, _ := time.ParseDuration("15m")
 	assert.Equal(t, expected, result) // Should return default value
-	
-	os.Unsetenv("TEST_DURATION")
 }
 
 func TestGetEnvAsDuration_MissingEnvVar(t *testing.T) {
@@ -179,64 +182,75 @@ func TestGetEnvAsDuration_MissingEnvVar(t *testing.T) {
 }
 
 func TestIsProduction(t *testing.T) {
+	defer cleanupEnvVars()
+	
 	// Test production environment
-	os.Setenv("APP_ENV", "production")
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("JWT_SECRET", "test-secret")
 	LoadEnv()
 	assert.True(t, IsProduction())
 	assert.False(t, IsDevelopment())
 	
 	// Test development environment
-	os.Setenv("APP_ENV", "development")
+	cleanupEnvVars()
+	t.Setenv("APP_ENV", "development")
 	LoadEnv()
 	assert.False(t, IsProduction())
 	assert.True(t, IsDevelopment())
 	
 	// Test other environment
-	os.Setenv("APP_ENV", "testing")
+	cleanupEnvVars()
+	t.Setenv("APP_ENV", "testing")
 	LoadEnv()
 	assert.False(t, IsProduction())
 	assert.False(t, IsDevelopment())
-	
-	cleanupEnvVars()
 }
 
 func TestIsDevelopment(t *testing.T) {
+	defer cleanupEnvVars()
+	
 	// Test development environment
-	os.Setenv("APP_ENV", "development")
+	t.Setenv("APP_ENV", "development")
 	LoadEnv()
 	assert.True(t, IsDevelopment())
 	
 	// Test non-development environment
-	os.Setenv("APP_ENV", "production")
+	cleanupEnvVars()
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("JWT_SECRET", "test-secret")
 	LoadEnv()
 	assert.False(t, IsDevelopment())
-	
-	cleanupEnvVars()
 }
 
 func TestConfigPersistence(t *testing.T) {
+	// Clean before test
+	cleanupEnvVars()
+	defer cleanupEnvVars()
+	
 	// Test that Config is properly set and accessible globally
-	os.Setenv("DB_HOST", "test-persistence")
+	t.Setenv("DB_HOST", "test-persistence")
+	t.Setenv("APP_ENV", "development")
 	LoadEnv()
 	
 	// Config should be accessible globally
 	assert.NotNil(t, Config)
 	assert.Equal(t, "test-persistence", Config.DBHost)
-	
-	cleanupEnvVars()
 }
 
 func TestJWTConfiguration(t *testing.T) {
+	// Clean before test
+	cleanupEnvVars()
+	defer cleanupEnvVars()
+	
 	// Test JWT-specific configuration
-	os.Setenv("JWT_SECRET", "super-secret-key")
-	os.Setenv("JWT_ISSUER", "test-auth-service")
+	t.Setenv("JWT_SECRET", "super-secret-key")
+	t.Setenv("JWT_ISSUER", "test-auth-service")
+	t.Setenv("APP_ENV", "development")
 	
 	LoadEnv()
 	
 	assert.Equal(t, "super-secret-key", Config.JWTSecret)
 	assert.Equal(t, "test-auth-service", Config.JWTIssuer)
-	
-	cleanupEnvVars()
 }
 
 // Helper function to clean up environment variables after tests
@@ -258,37 +272,30 @@ func cleanupEnvVars() {
 // Benchmark tests for performance
 func BenchmarkLoadEnv(b *testing.B) {
 	// Set up some environment variables
-	os.Setenv("DB_HOST", "benchmark-host")
-	os.Setenv("JWT_SECRET", "benchmark-secret")
+	b.Setenv("DB_HOST", "benchmark-host")
+	b.Setenv("JWT_SECRET", "benchmark-secret")
+	b.Setenv("APP_ENV", "development")
 	
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		LoadEnv()
 	}
-	
-	// Cleanup
-	os.Unsetenv("DB_HOST")
-	os.Unsetenv("JWT_SECRET")
 }
 
 func BenchmarkGetEnvAsInt(b *testing.B) {
-	os.Setenv("BENCHMARK_INT", "42")
+	b.Setenv("BENCHMARK_INT", "42")
 	
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		GetEnvAsInt("BENCHMARK_INT", 10)
 	}
-	
-	os.Unsetenv("BENCHMARK_INT")
 }
 
 func BenchmarkGetEnvAsDuration(b *testing.B) {
-	os.Setenv("BENCHMARK_DURATION", "30m")
+	b.Setenv("BENCHMARK_DURATION", "30m")
 	
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		GetEnvAsDuration("BENCHMARK_DURATION", "15m")
 	}
-	
-	os.Unsetenv("BENCHMARK_DURATION")
 }
