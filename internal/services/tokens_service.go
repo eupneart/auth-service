@@ -73,6 +73,7 @@ func (s *tokenService) GenerateTokens(ctx context.Context, user *models.User) (a
 		},
 		UserID:    user.ID,
 		Email:     user.Email,
+		Role:      user.Role,
 		TokenType: models.TokenTypeRefresh,
 	}
 

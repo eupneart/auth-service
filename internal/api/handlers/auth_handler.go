@@ -50,6 +50,16 @@ func (h *AuthHandler) Authenticate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate email format
+	if !utils.IsValidEmail(requestPayload.Email) {
+		slog.Warn("authentication attempt with invalid email format",
+			"email", requestPayload.Email,
+			"method", "AuthHandler.Authenticate",
+			"remote_addr", r.RemoteAddr)
+		utils.ErrorJSON(w, errors.New("invalid email format"), http.StatusBadRequest)
+		return
+	}
+
 	// validate the user against the database
 	user, err := h.UserService.GetByEmail(context.Background(), requestPayload.Email)
 	if err != nil {
@@ -118,10 +128,11 @@ func (h *AuthHandler) Authenticate(w http.ResponseWriter, r *http.Request) {
 	// Update user's last login timestamp
 	user.LastLogin = time.Now()
 	if err := h.UserService.Update(context.Background(), *user); err != nil {
-		// Log error but don't fail the authentication
-		slog.Warn("failed to update last login time",
+		// Log error but don't fail the authentication (non-critical operation)
+		slog.Error("failed to update last login time (non-critical)",
 			"error", err,
 			"user_id", user.ID,
+			"email", user.Email,
 			"method", "AuthHandler.Authenticate")
 	}
 

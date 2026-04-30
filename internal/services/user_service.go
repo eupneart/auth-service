@@ -92,10 +92,12 @@ func (s *UserService) GetByEmail(ctx context.Context, email string) (*models.Use
 		return nil, err
 	}
 	
-	slog.Info("successfully retrieved user by email",
-		"email", email,
-		"user_id", user.ID,
-		"method", "UserService.GetByEmail")
+	if user != nil {
+		slog.Info("successfully retrieved user by email",
+			"email", email,
+			"user_id", user.ID,
+			"method", "UserService.GetByEmail")
+	}
 	
 	return user, nil
 }
