@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
+	"github.com/eupneart/auth-service/internal/api/middleware"
 	"github.com/eupneart/auth-service/internal/models"
 	"github.com/eupneart/auth-service/internal/services"
 	"github.com/eupneart/auth-service/utils"
@@ -302,4 +304,119 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	_ = utils.WriteJSON(w, payload, http.StatusCreated)
+}
+
+func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
+	var requestPayload models.RefreshTokenRequest
+	if err := utils.ReadJSON(w, r, &requestPayload); err != nil {
+		utils.ErrorJSON(w, err, http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(requestPayload.RefreshToken) == "" {
+		utils.ErrorJSON(w, errors.New("refresh token required"), http.StatusBadRequest)
+		return
+	}
+
+	accessToken, err := h.TokenService.RefreshAccessToken(r.Context(), requestPayload.RefreshToken)
+	if err != nil {
+		slog.Warn("token refresh failed", "error", err, "remote_addr", r.RemoteAddr)
+		utils.ErrorJSON(w, errors.New("invalid refresh token"), http.StatusUnauthorized)
+		return
+	}
+
+	payload := utils.JsonResponse{
+		Error:   false,
+		Message: "Token refreshed successfully",
+		Data: map[string]any{
+			"access_token": accessToken,
+			"token_type":   models.DefaultTokenType,
+			"expires_in":   int64(models.DefaultAccessTokenLifetime.Seconds()),
+		},
+	}
+	_ = utils.WriteJSON(w, payload, http.StatusOK)
+}
+
+func (h *AuthHandler) Validate(w http.ResponseWriter, r *http.Request) {
+	var requestPayload struct {
+		Token string `json:"token"`
+	}
+	if err := utils.ReadJSON(w, r, &requestPayload); err != nil {
+		utils.ErrorJSON(w, err, http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(requestPayload.Token) == "" {
+		utils.ErrorJSON(w, errors.New("token required"), http.StatusBadRequest)
+		return
+	}
+
+	claims, err := h.TokenService.ValidateToken(r.Context(), requestPayload.Token)
+	if err != nil {
+		payload := utils.JsonResponse{
+			Error:   false,
+			Message: "Token validation result",
+			Data: models.TokenValidationResponse{
+				Valid: false,
+				Error: err.Error(),
+			},
+		}
+		_ = utils.WriteJSON(w, payload, http.StatusOK)
+		return
+	}
+
+	validationResponse := models.TokenValidationResponse{
+		Valid:  true,
+		Claims: claims,
+	}
+	if claims.ExpiresAt != nil {
+		validationResponse.ExpiresAt = claims.ExpiresAt.Time
+	}
+
+	payload := utils.JsonResponse{
+		Error:   false,
+		Message: "Token is valid",
+		Data:    validationResponse,
+	}
+	_ = utils.WriteJSON(w, payload, http.StatusOK)
+}
+
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
+	token, err := middleware.GetTokenFromContext(r)
+	if err != nil {
+		utils.ErrorJSON(w, err, http.StatusUnauthorized)
+		return
+	}
+
+	if err := h.TokenService.RevokeToken(r.Context(), token); err != nil {
+		slog.Error("failed to revoke token during logout", "error", err)
+		utils.ErrorJSON(w, errors.New("failed to logout"), http.StatusInternalServerError)
+		return
+	}
+
+	payload := utils.JsonResponse{Error: false, Message: "Successfully logged out"}
+	_ = utils.WriteJSON(w, payload, http.StatusOK)
+}
+
+func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
+	claims := middleware.GetClaimsFromContext(r)
+	if claims == nil {
+		utils.ErrorJSON(w, errors.New("claims not found in context"), http.StatusUnauthorized)
+		return
+	}
+
+	user, err := h.UserService.GetByID(r.Context(), claims.UserID)
+	if err != nil || user == nil {
+		utils.ErrorJSON(w, errors.New("user not found"), http.StatusNotFound)
+		return
+	}
+	if !user.IsActive {
+		utils.ErrorJSON(w, errors.New("user account is inactive"), http.StatusUnauthorized)
+		return
+	}
+
+	payload := utils.JsonResponse{
+		Error:   false,
+		Message: "User retrieved successfully",
+		Data:    user,
+	}
+	_ = utils.WriteJSON(w, payload, http.StatusOK)
 }

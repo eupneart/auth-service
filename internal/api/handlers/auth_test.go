@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/eupneart/auth-service/internal/api/middleware"
 	"github.com/eupneart/auth-service/internal/models"
 	"github.com/eupneart/auth-service/internal/services"
 	"github.com/stretchr/testify/assert"
@@ -456,4 +457,202 @@ func TestAuthHandler_Authenticate_LastLoginUpdateFailure(t *testing.T) {
 
 	// Verify tokens were still generated
 	mockTokenService.AssertCalled(t, "GenerateTokens", mock.Anything, testUser)
+}
+
+func TestAuthHandler_Refresh(t *testing.T) {
+	mockTokenService := new(MockTokenService)
+	handler := NewAuthHandler(nil, mockTokenService)
+	mockTokenService.On("RefreshAccessToken", mock.Anything, "refresh-token").Return("new-access-token", nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/refresh",
+		bytes.NewReader([]byte(`{"refresh_token":"refresh-token"}`)))
+	w := httptest.NewRecorder()
+	handler.Refresh(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"access_token": "new-access-token"`)
+	mockTokenService.AssertExpectations(t)
+}
+
+func TestAuthHandler_ValidateInvalidTokenReturnsResult(t *testing.T) {
+	mockTokenService := new(MockTokenService)
+	handler := NewAuthHandler(nil, mockTokenService)
+	mockTokenService.On("ValidateToken", mock.Anything, "bad-token").
+		Return(nil, errors.New("token has been revoked"))
+
+	req := httptest.NewRequest(http.MethodPost, "/validate",
+		bytes.NewReader([]byte(`{"token":"bad-token"}`)))
+	w := httptest.NewRecorder()
+	handler.Validate(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"valid": false`)
+	mockTokenService.AssertExpectations(t)
+}
+
+func TestAuthHandler_Logout(t *testing.T) {
+	mockTokenService := new(MockTokenService)
+	handler := NewAuthHandler(nil, mockTokenService)
+	mockTokenService.On("ValidateToken", mock.Anything, "access-token").
+		Return(&models.Claims{UserID: 42, TokenType: models.TokenTypeAccess}, nil)
+	mockTokenService.On("RevokeToken", mock.Anything, "access-token").Return(nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/logout", nil)
+	req.Header.Set("Authorization", "Bearer access-token")
+	w := httptest.NewRecorder()
+	middleware.Auth(mockTokenService)(http.HandlerFunc(handler.Logout)).ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), "Successfully logged out")
+	mockTokenService.AssertExpectations(t)
+}
+
+func TestAuthHandler_GetMeOmitsPassword(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	handler := NewAuthHandler(services.New(mockRepo), new(MockTokenService))
+	user := &models.User{
+		ID:       42,
+		Email:    "user@example.com",
+		Password: "hashed-password",
+		IsActive: true,
+	}
+	mockRepo.On("GetByID", mock.Anything, int64(42)).Return(user, nil)
+	mockTokenService := new(MockTokenService)
+	mockTokenService.On("ValidateToken", mock.Anything, "access-token").
+		Return(&models.Claims{UserID: 42, TokenType: models.TokenTypeAccess}, nil)
+	handler.TokenService = mockTokenService
+
+	req := httptest.NewRequest(http.MethodGet, "/me", nil)
+	req.Header.Set("Authorization", "Bearer access-token")
+	w := httptest.NewRecorder()
+	middleware.Auth(mockTokenService)(http.HandlerFunc(handler.GetMe)).ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"email": "user@example.com"`)
+	assert.NotContains(t, w.Body.String(), "hashed-password")
+	mockRepo.AssertExpectations(t)
+}
+
+func TestAuthHandler_RefreshErrors(t *testing.T) {
+	testCases := []struct {
+		name       string
+		body       string
+		serviceErr error
+		status     int
+	}{
+		{"missing token", `{}`, nil, http.StatusBadRequest},
+		{"malformed JSON", `{`, nil, http.StatusBadRequest},
+		{"expired token", `{"refresh_token":"expired"}`, errors.New("token has expired"), http.StatusUnauthorized},
+		{"revoked token", `{"refresh_token":"revoked"}`, errors.New("token has been revoked"), http.StatusUnauthorized},
+		{"wrong token type", `{"refresh_token":"access-token"}`, errors.New("invalid token type"), http.StatusUnauthorized},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tokenService := new(MockTokenService)
+			handler := NewAuthHandler(nil, tokenService)
+			if tc.serviceErr != nil {
+				tokenService.On("RefreshAccessToken", mock.Anything, mock.AnythingOfType("string")).Return("", tc.serviceErr)
+			}
+
+			req := httptest.NewRequest(http.MethodPost, "/refresh", bytes.NewBufferString(tc.body))
+			w := httptest.NewRecorder()
+			handler.Refresh(w, req)
+
+			assert.Equal(t, tc.status, w.Code)
+			if tc.serviceErr != nil {
+				tokenService.AssertExpectations(t)
+			}
+		})
+	}
+}
+
+func TestAuthHandler_ValidateValidToken(t *testing.T) {
+	tokenService := new(MockTokenService)
+	handler := NewAuthHandler(nil, tokenService)
+	tokenService.On("ValidateToken", mock.Anything, "valid-token").
+		Return(&models.Claims{UserID: 1}, nil)
+
+	req := httptest.NewRequest(http.MethodPost, "/validate",
+		bytes.NewBufferString(`{"token":"valid-token"}`))
+	w := httptest.NewRecorder()
+	handler.Validate(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Contains(t, w.Body.String(), `"valid": true`)
+	assert.Contains(t, w.Body.String(), `"user_id": 1`)
+	tokenService.AssertExpectations(t)
+}
+
+func TestAuthHandler_ValidateInvalidTokenVariants(t *testing.T) {
+	for _, token := range []string{"expired", "revoked"} {
+		t.Run(token, func(t *testing.T) {
+			tokenService := new(MockTokenService)
+			handler := NewAuthHandler(nil, tokenService)
+			tokenService.On("ValidateToken", mock.Anything, token).
+				Return(nil, errors.New("token is invalid"))
+
+			req := httptest.NewRequest(http.MethodPost, "/validate",
+				bytes.NewBufferString(`{"token":"`+token+`"}`))
+			w := httptest.NewRecorder()
+			handler.Validate(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+			assert.Contains(t, w.Body.String(), `"valid": false`)
+			tokenService.AssertExpectations(t)
+		})
+	}
+}
+
+func TestAuthHandler_LogoutRevocationFailure(t *testing.T) {
+	tokenService := new(MockTokenService)
+	handler := NewAuthHandler(nil, tokenService)
+	tokenService.On("ValidateToken", mock.Anything, "access-token").
+		Return(&models.Claims{UserID: 1, TokenType: models.TokenTypeAccess}, nil)
+	tokenService.On("RevokeToken", mock.Anything, "access-token").
+		Return(errors.New("database unavailable"))
+
+	req := httptest.NewRequest(http.MethodPost, "/logout", nil)
+	req.Header.Set("Authorization", "Bearer access-token")
+	w := httptest.NewRecorder()
+	middleware.Auth(tokenService)(http.HandlerFunc(handler.Logout)).ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	tokenService.AssertExpectations(t)
+}
+
+func TestAuthHandler_GetMeInactiveUser(t *testing.T) {
+	repo := new(MockUserRepository)
+	handler := NewAuthHandler(services.New(repo), new(MockTokenService))
+	repo.On("GetByID", mock.Anything, int64(42)).
+		Return(&models.User{ID: 42, IsActive: false}, nil)
+	tokenService := new(MockTokenService)
+	tokenService.On("ValidateToken", mock.Anything, "access-token").
+		Return(&models.Claims{UserID: 42, TokenType: models.TokenTypeAccess}, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/me", nil)
+	req.Header.Set("Authorization", "Bearer access-token")
+	w := httptest.NewRecorder()
+	middleware.Auth(tokenService)(http.HandlerFunc(handler.GetMe)).ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.Contains(t, w.Body.String(), "inactive")
+	repo.AssertExpectations(t)
+}
+
+func TestAuthHandler_GetMeMissingUser(t *testing.T) {
+	repo := new(MockUserRepository)
+	handler := NewAuthHandler(services.New(repo), new(MockTokenService))
+	repo.On("GetByID", mock.Anything, int64(42)).Return(nil, nil)
+	tokenService := new(MockTokenService)
+	tokenService.On("ValidateToken", mock.Anything, "access-token").
+		Return(&models.Claims{UserID: 42, TokenType: models.TokenTypeAccess}, nil)
+
+	req := httptest.NewRequest(http.MethodGet, "/me", nil)
+	req.Header.Set("Authorization", "Bearer access-token")
+	w := httptest.NewRecorder()
+	middleware.Auth(tokenService)(http.HandlerFunc(handler.GetMe)).ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+	repo.AssertExpectations(t)
 }

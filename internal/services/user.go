@@ -18,7 +18,7 @@ type UserService struct {
 
 const dbTimeout = 3 * time.Second
 
-// New is the function used to create an instance of the service package. 
+// New is the function used to create an instance of the service package.
 // It returns the type UserService.
 func New(userRepo repositories.UserRepoInterface) *UserService {
 	return &UserService{userRepo: userRepo}
@@ -27,7 +27,7 @@ func New(userRepo repositories.UserRepoInterface) *UserService {
 func (s *UserService) GetAll(ctx context.Context) ([]*models.User, error) {
 	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
-	
+
 	users, err := s.userRepo.GetAll(ctx)
 	if err != nil {
 		slog.Error("failed to get all users from repository",
@@ -35,11 +35,11 @@ func (s *UserService) GetAll(ctx context.Context) ([]*models.User, error) {
 			"method", "UserService.GetAll")
 		return nil, err
 	}
-	
+
 	slog.Info("successfully retrieved all users",
 		"user_count", len(users),
 		"method", "UserService.GetAll")
-	
+
 	return users, nil
 }
 
@@ -51,10 +51,10 @@ func (s *UserService) GetByID(ctx context.Context, id int64) (*models.User, erro
 			"method", "UserService.GetByID")
 		return nil, fmt.Errorf("user ID must be provided")
 	}
-	
+
 	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
-	
+
 	user, err := s.userRepo.GetByID(ctx, id)
 	if err != nil {
 		slog.Error("failed to get user by ID from repository",
@@ -63,12 +63,18 @@ func (s *UserService) GetByID(ctx context.Context, id int64) (*models.User, erro
 			"method", "UserService.GetByID")
 		return nil, err
 	}
-	
+	if user == nil {
+		slog.Warn("user repository returned nil user",
+			"id", id,
+			"method", "UserService.GetByID")
+		return nil, nil
+	}
+
 	slog.Info("successfully retrieved user by ID",
 		"id", id,
 		"email", user.Email,
 		"method", "UserService.GetByID")
-	
+
 	return user, nil
 }
 
@@ -79,10 +85,10 @@ func (s *UserService) GetByEmail(ctx context.Context, email string) (*models.Use
 			"method", "UserService.GetByEmail")
 		return nil, fmt.Errorf("user email must be provided")
 	}
-	
+
 	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
-	
+
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
 		slog.Error("failed to get user by email from repository",
@@ -91,14 +97,14 @@ func (s *UserService) GetByEmail(ctx context.Context, email string) (*models.Use
 			"method", "UserService.GetByEmail")
 		return nil, err
 	}
-	
+
 	if user != nil {
 		slog.Info("successfully retrieved user by email",
 			"email", email,
 			"user_id", user.ID,
 			"method", "UserService.GetByEmail")
 	}
-	
+
 	return user, nil
 }
 
@@ -110,10 +116,10 @@ func (s *UserService) Update(ctx context.Context, u models.User) error {
 			"method", "UserService.Update")
 		return fmt.Errorf("user ID must be provided")
 	}
-	
+
 	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
-	
+
 	// Call the repository's Update method
 	err := s.userRepo.Update(ctx, u)
 	if err != nil {
@@ -124,12 +130,12 @@ func (s *UserService) Update(ctx context.Context, u models.User) error {
 			"method", "UserService.Update")
 		return fmt.Errorf("failed to update user: %w", err)
 	}
-	
+
 	slog.Info("successfully updated user",
 		"user_id", u.ID,
 		"email", u.Email,
 		"method", "UserService.Update")
-	
+
 	return nil
 }
 
@@ -140,10 +146,10 @@ func (s *UserService) DeleteByID(ctx context.Context, id int64) error {
 			"method", "UserService.DeleteByID")
 		return fmt.Errorf("user ID must be provided")
 	}
-	
+
 	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
-	
+
 	err := s.userRepo.DeleteByID(ctx, id)
 	if err != nil {
 		slog.Error("failed to delete user from repository",
@@ -152,18 +158,18 @@ func (s *UserService) DeleteByID(ctx context.Context, id int64) error {
 			"method", "UserService.DeleteByID")
 		return err
 	}
-	
+
 	slog.Info("successfully deleted user",
 		"id", id,
 		"method", "UserService.DeleteByID")
-	
+
 	return nil
 }
 
 func (s *UserService) Insert(ctx context.Context, u models.User) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
-	
+
 	// Encrypt the user pwd (hash the pwd)
 	encryptedPwd, err := bcrypt.GenerateFromPassword([]byte(u.Password), 12)
 	if err != nil {
@@ -173,10 +179,10 @@ func (s *UserService) Insert(ctx context.Context, u models.User) (int64, error) 
 			"method", "UserService.Insert")
 		return 0, fmt.Errorf("encrypting password: %w", err)
 	}
-	
+
 	// Update the user password
 	u.Password = string(encryptedPwd)
-	
+
 	newUserID, err := s.userRepo.Insert(ctx, u)
 	if err != nil {
 		slog.Error("failed to insert user in repository",
@@ -187,14 +193,14 @@ func (s *UserService) Insert(ctx context.Context, u models.User) (int64, error) 
 			"method", "UserService.Insert")
 		return 0, err
 	}
-	
+
 	slog.Info("successfully inserted new user",
 		"user_id", newUserID,
 		"email", u.Email,
 		"first_name", u.FirstName,
 		"last_name", u.LastName,
 		"method", "UserService.Insert")
-	
+
 	return newUserID, nil
 }
 
@@ -210,7 +216,7 @@ func (s *UserService) ResetPassword(ctx context.Context, user *models.User) erro
 
 	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
-	
+
 	// Hash the new password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), 12)
 	if err != nil {
@@ -220,13 +226,13 @@ func (s *UserService) ResetPassword(ctx context.Context, user *models.User) erro
 			"method", "UserService.ResetPassword")
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
-	
+
 	// Create a user struct with the new password
 	u := models.User{
 		ID:       user.ID,                // Specify the user ID
 		Password: string(hashedPassword), // Update the password field
 	}
-	
+
 	err = s.userRepo.Update(ctx, u)
 	if err != nil {
 		slog.Error("failed to update password in repository",
@@ -235,11 +241,11 @@ func (s *UserService) ResetPassword(ctx context.Context, user *models.User) erro
 			"method", "UserService.ResetPassword")
 		return err
 	}
-	
+
 	slog.Info("successfully reset user password",
 		"user_id", user.ID,
 		"method", "UserService.ResetPassword")
-	
+
 	return nil
 }
 
@@ -265,12 +271,12 @@ func (s *UserService) PasswordMatches(u *models.User, plainText string) (bool, e
 			return false, fmt.Errorf("Error comparing password for user ID %d: %v", u.ID, err)
 		}
 	}
-	
+
 	// Passwords match
 	slog.Info("password validation successful",
 		"user_id", u.ID,
 		"email", u.Email,
 		"method", "UserService.PasswordMatches")
-	
+
 	return true, nil
 }
