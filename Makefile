@@ -9,7 +9,8 @@ help:
 	@echo "  make coverage       Generate HTML coverage report"
 	@echo "  make lint           Run linter (go vet and go fmt check)"
 	@echo "  make fmt            Format all Go code"
-	@echo "  make migrate-up     Run database migrations"
+	@echo "  make migrate-up     Apply pending database migrations"
+	@echo "  make migrate-down   Roll back the last applied migration"
 	@echo "  make docker-build   Build Docker image"
 	@echo "  make clean          Remove build artifacts"
 	@echo ""
@@ -36,7 +37,10 @@ coverage:
 lint:
 	@echo "Running linter..."
 	@go vet ./...
-	@go fmt ./... 2>&1 | grep -q "." && echo "⚠ Some files need formatting" || echo "✓ All files properly formatted"
+	@unformatted=$$(gofmt -l .); \
+	 if [ -n "$$unformatted" ]; then \
+	   echo "⚠ Unformatted files (run 'make fmt'):"; echo "$$unformatted"; exit 1; \
+	 else echo "✓ All files properly formatted"; fi
 
 fmt:
 	@echo "Formatting code..."
@@ -44,10 +48,12 @@ fmt:
 	@echo "✓ Code formatted"
 
 migrate-up:
-	@echo "Running migrations..."
-	@./scripts/migrate.sh
+	@./scripts/migrate.sh up
 
-docker-build:
+migrate-down:
+	@./scripts/migrate.sh down
+
+docker-build: build
 	@echo "Building Docker image..."
 	@./scripts/docker-build.sh
 
