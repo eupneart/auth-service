@@ -53,7 +53,7 @@ migrate-up:
 migrate-down:
 	@./scripts/migrate.sh down
 
-docker-build: build
+docker-build:
 	@echo "Building Docker image..."
 	@./scripts/docker-build.sh
 
