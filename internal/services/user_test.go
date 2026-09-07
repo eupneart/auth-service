@@ -142,25 +142,26 @@ func TestUserService_ResetPassword(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Test password reset
-	user := &models.User{ID: 1, Password: "newpassword"}
+	// Test password reset. Password must satisfy utils.IsValidPassword.
+	plainPassword := "NewPassw0rd!"
+	user := &models.User{ID: 1, Password: plainPassword}
 
-	mockRepo.On("Update", mock.Anything, mock.AnythingOfType("models.User")).
+	mockRepo.On("UpdatePassword", mock.Anything, int64(1), mock.AnythingOfType("string")).
 		Return(nil).
 		Run(func(args mock.Arguments) {
-			// Verify the password is hashed
-			updatedUser := args.Get(1).(models.User)
+			hashed := args.Get(2).(string)
 
-			assert.NotEqual(t, user.Password, updatedUser.Password, "Password should be hashed")
+			assert.NotEqual(t, plainPassword, hashed, "Password should be hashed")
 
 			// Verify bcrypt hash is valid
-			err := bcrypt.CompareHashAndPassword([]byte(updatedUser.Password), []byte(user.Password))
+			err := bcrypt.CompareHashAndPassword([]byte(hashed), []byte(plainPassword))
 			assert.NoError(t, err, "Bcrypt hash should be valid")
 		})
 
 	err := service.ResetPassword(ctx, user)
 	assert.NoError(t, err)
-	mockRepo.AssertCalled(t, "Update", mock.Anything, mock.AnythingOfType("models.User"))
+	mockRepo.AssertCalled(t, "UpdatePassword", mock.Anything, int64(1), mock.AnythingOfType("string"))
+	mockRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
 }
 
 func TestUserService_ResetPassword_EmptyPassword(t *testing.T) {
@@ -173,7 +174,34 @@ func TestUserService_ResetPassword_EmptyPassword(t *testing.T) {
 	err := service.ResetPassword(ctx, user)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "password cannot be empty")
-	mockRepo.AssertNotCalled(t, "Update", mock.Anything, mock.Anything)
+	mockRepo.AssertNotCalled(t, "UpdatePassword", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestUserService_ResetPassword_WeakPassword(t *testing.T) {
+	mockRepo := new(MockUserRepo)
+	service := New(mockRepo)
+
+	ctx := context.Background()
+	// Non-empty but fails strength requirements (no upper/digit/special).
+	user := &models.User{ID: 1, Password: "weakpassword"}
+
+	err := service.ResetPassword(ctx, user)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "strength requirements")
+	mockRepo.AssertNotCalled(t, "UpdatePassword", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestUserService_ResetPassword_ZeroID(t *testing.T) {
+	mockRepo := new(MockUserRepo)
+	service := New(mockRepo)
+
+	ctx := context.Background()
+	user := &models.User{ID: 0, Password: "NewPassw0rd!"}
+
+	err := service.ResetPassword(ctx, user)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "user ID must be provided")
+	mockRepo.AssertNotCalled(t, "UpdatePassword", mock.Anything, mock.Anything, mock.Anything)
 }
 
 func TestUserService_PasswordMatches(t *testing.T) {
@@ -248,6 +276,11 @@ func (m *MockUserRepo) GetByEmail(ctx context.Context, email string) (*models.Us
 
 func (m *MockUserRepo) Update(ctx context.Context, user models.User) error {
 	args := m.Called(ctx, user)
+	return args.Error(0)
+}
+
+func (m *MockUserRepo) UpdatePassword(ctx context.Context, userID int64, hashedPassword string) error {
+	args := m.Called(ctx, userID, hashedPassword)
 	return args.Error(0)
 }
 

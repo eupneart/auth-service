@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"database/sql"
 	"regexp"
 	"testing"
 	"time"
@@ -192,6 +193,56 @@ func TestUserRepo_Update_PartialFields(t *testing.T) {
 
 	// Assertions
 	require.NoError(t, err)
+}
+
+func TestUserRepo_UpdatePassword(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewUserRepo(db)
+
+	const hash = "$2a$12$abcdefghijklmnopqrstuv"
+
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE users SET password = $1, updated_at = $2 WHERE id = $3`)).
+		WithArgs(hash, sqlmock.AnyArg(), int64(1)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err = repo.UpdatePassword(context.Background(), 1, hash)
+	require.NoError(t, err)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestUserRepo_UpdatePassword_NoRows(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewUserRepo(db)
+
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE users SET password = $1, updated_at = $2 WHERE id = $3`)).
+		WithArgs("hash", sqlmock.AnyArg(), int64(999)).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	err = repo.UpdatePassword(context.Background(), 999, "hash")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "no user found")
+}
+
+func TestUserRepo_UpdatePassword_ExecError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewUserRepo(db)
+
+	mock.ExpectExec(regexp.QuoteMeta(`UPDATE users SET password = $1, updated_at = $2 WHERE id = $3`)).
+		WithArgs("hash", sqlmock.AnyArg(), int64(1)).
+		WillReturnError(sql.ErrConnDone)
+
+	err = repo.UpdatePassword(context.Background(), 1, "hash")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "updating user password")
 }
 
 func TestUserRepo_DeleteByID(t *testing.T) {

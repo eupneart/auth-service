@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"log/slog"
@@ -63,6 +64,24 @@ func main() {
 	tokenService := services.NewTokenService(tokenConfig, userRepo, tokenRepo, logger)
 
 	logger.Info("Services initialized successfully")
+
+	// Periodically purge expired token metadata. Best-effort: this goroutine
+	// runs for the lifetime of the process.
+	cleanupInterval := env.GetEnvAsDuration("TOKEN_CLEANUP_INTERVAL", "1h")
+	go func() {
+		runCleanup := func() {
+			if err := tokenService.CleanupExpiredTokens(context.Background()); err != nil {
+				logger.Error("expired token cleanup failed", slog.String("error", err.Error()))
+			}
+		}
+		runCleanup()
+		ticker := time.NewTicker(cleanupInterval)
+		defer ticker.Stop()
+		for range ticker.C {
+			runCleanup()
+		}
+	}()
+	logger.Info("Expired token cleanup scheduled", slog.Duration("interval", cleanupInterval))
 
 	// Create the API server
 	server := api.NewServer(cfg, userService, tokenService)

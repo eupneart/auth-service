@@ -9,6 +9,7 @@ import (
 
 	"github.com/eupneart/auth-service/internal/models"
 	"github.com/eupneart/auth-service/internal/repositories"
+	"github.com/eupneart/auth-service/utils"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -210,8 +211,16 @@ func (s *UserService) ResetPassword(ctx context.Context, user *models.User) erro
 		return fmt.Errorf("user cannot be nil")
 	}
 
+	if user.ID == 0 {
+		return fmt.Errorf("user ID must be provided")
+	}
+
 	if user.Password == "" {
 		return fmt.Errorf("password cannot be empty")
+	}
+
+	if !utils.IsValidPassword(user.Password) {
+		return fmt.Errorf("password does not meet strength requirements")
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
@@ -227,13 +236,9 @@ func (s *UserService) ResetPassword(ctx context.Context, user *models.User) erro
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
-	// Create a user struct with the new password
-	u := models.User{
-		ID:       user.ID,                // Specify the user ID
-		Password: string(hashedPassword), // Update the password field
-	}
-
-	err = s.userRepo.Update(ctx, u)
+	// Persist via the dedicated password-update path (not the generic Update,
+	// which does not touch the password column).
+	err = s.userRepo.UpdatePassword(ctx, user.ID, string(hashedPassword))
 	if err != nil {
 		slog.Error("failed to update password in repository",
 			"error", err,

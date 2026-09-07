@@ -59,8 +59,9 @@ func (lifecycleUserRepo) GetByID(context.Context, int64) (*models.User, error) {
 func (lifecycleUserRepo) GetByEmail(context.Context, string) (*models.User, error) {
 	return nil, nil
 }
-func (lifecycleUserRepo) Update(context.Context, models.User) error { return nil }
-func (lifecycleUserRepo) DeleteByID(context.Context, int64) error   { return nil }
+func (lifecycleUserRepo) Update(context.Context, models.User) error           { return nil }
+func (lifecycleUserRepo) UpdatePassword(context.Context, int64, string) error { return nil }
+func (lifecycleUserRepo) DeleteByID(context.Context, int64) error             { return nil }
 func (lifecycleUserRepo) Insert(context.Context, models.User) (int64, error) {
 	return 1, nil
 }

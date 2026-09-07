@@ -53,6 +53,11 @@ func (m *MockUserRepository) Update(ctx context.Context, u models.User) error {
 	return args.Error(0)
 }
 
+func (m *MockUserRepository) UpdatePassword(ctx context.Context, userID int64, hashedPassword string) error {
+	args := m.Called(ctx, userID, hashedPassword)
+	return args.Error(0)
+}
+
 func (m *MockUserRepository) DeleteByID(ctx context.Context, id int64) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)

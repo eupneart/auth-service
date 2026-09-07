@@ -134,6 +134,37 @@ func (r *UserRepo) Update(ctx context.Context, u models.User) error {
 	return nil
 }
 
+// UpdatePassword sets a new (already hashed) password for a single user.
+// It is intentionally separate from Update so the generic user-update path
+// never touches the password column.
+func (r *UserRepo) UpdatePassword(ctx context.Context, userID int64, hashedPassword string) error {
+	stmt := `UPDATE users SET password = $1, updated_at = $2 WHERE id = $3`
+
+	result, err := r.DB.ExecContext(ctx, stmt, hashedPassword, time.Now(), userID)
+	if err != nil {
+		slog.Error("failed to update user password",
+			"error", err,
+			"query", stmt,
+			"user_id", userID,
+			"method", "UserRepo.UpdatePassword")
+		return fmt.Errorf("updating user password: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		slog.Error("failed to get rows affected after password update",
+			"error", err,
+			"user_id", userID,
+			"method", "UserRepo.UpdatePassword")
+		return fmt.Errorf("checking password update result: %w", err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("updating user password: no user found with id %d", userID)
+	}
+
+	return nil
+}
+
 // DeleteByID one user from the database, by ID
 func (r *UserRepo) DeleteByID(ctx context.Context, id int64) error {
 	stmt := `DELETE FROM users WHERE id = $1`
