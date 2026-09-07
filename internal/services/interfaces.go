@@ -35,3 +35,9 @@ type TokenService interface {
 	RevokeAllTokensForUser(ctx context.Context, userID int64) error
 	CleanupExpiredTokens(ctx context.Context) error
 }
+
+// PasswordResetMailer delivers a prebuilt reset link. Implementations must not
+// log or persist resetURL beyond delivery: it is a bearer credential.
+type PasswordResetMailer interface {
+	SendPasswordReset(ctx context.Context, recipient, resetURL string) error
+}

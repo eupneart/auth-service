@@ -22,6 +22,17 @@ type EnvConfig struct {
 	JWTIssuer  string
 	AppPort    string
 	AppEnv     string
+
+	// PasswordResetBaseURL is the page reset links point at. Configuration is
+	// the only source: building it from a request header would allow reset-link
+	// poisoning.
+	PasswordResetBaseURL string
+
+	SMTPHost     string
+	SMTPPort     string
+	SMTPUsername string
+	SMTPPassword string
+	SMTPFrom     string
 }
 
 var Config *EnvConfig
@@ -50,6 +61,13 @@ func LoadEnv() *EnvConfig {
 		dbPassword string
 		dbName     string
 		jwtSecret  string
+
+		passwordResetBaseURL string
+		smtpHost             string
+		smtpPort             string
+		smtpUsername         string
+		smtpPassword         string
+		smtpFrom             string
 	)
 
 	if isProduction {
@@ -61,6 +79,15 @@ func LoadEnv() *EnvConfig {
 		// Optional with defaults in production
 		dbPort = getEnv("DB_PORT", "5432")
 		dbUser = getEnv("DB_USER", "postgres")
+
+		// Password reset needs a real sender in production; the development
+		// file mailer would leave live reset links on disk.
+		passwordResetBaseURL = getEnvRequired("PASSWORD_RESET_BASE_URL")
+		smtpHost = getEnvRequired("SMTP_HOST")
+		smtpPort = getEnv("SMTP_PORT", "587")
+		smtpUsername = getEnvRequired("SMTP_USERNAME")
+		smtpPassword = getEnvRequired("SMTP_PASSWORD")
+		smtpFrom = getEnvRequired("SMTP_FROM")
 	} else {
 		// Development: all optional with defaults, except JWT_SECRET (auto-generate if missing)
 		dbHost = getEnv("DB_HOST", "localhost")
@@ -75,6 +102,13 @@ func LoadEnv() *EnvConfig {
 			jwtSecret = generateRandomSecret(32)
 			log.Printf("[INFO] Generated random JWT secret for development")
 		}
+
+		passwordResetBaseURL = getEnv("PASSWORD_RESET_BASE_URL", "http://localhost:4200/reset-password")
+		smtpHost = getEnv("SMTP_HOST", "")
+		smtpPort = getEnv("SMTP_PORT", "587")
+		smtpUsername = getEnv("SMTP_USERNAME", "")
+		smtpPassword = getEnv("SMTP_PASSWORD", "")
+		smtpFrom = getEnv("SMTP_FROM", "no-reply@localhost")
 	}
 
 	Config = &EnvConfig{
@@ -87,6 +121,13 @@ func LoadEnv() *EnvConfig {
 		JWTIssuer:  getEnv("JWT_ISSUER", "eupneart-auth-service"),
 		AppPort:    getEnv("APP_PORT", "8080"),
 		AppEnv:     appEnv,
+
+		PasswordResetBaseURL: passwordResetBaseURL,
+		SMTPHost:             smtpHost,
+		SMTPPort:             smtpPort,
+		SMTPUsername:         smtpUsername,
+		SMTPPassword:         smtpPassword,
+		SMTPFrom:             smtpFrom,
 	}
 
 	return Config

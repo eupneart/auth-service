@@ -26,17 +26,24 @@ func (s *Server) Routes() http.Handler {
 	mux.Use(chimiddleware.Heartbeat("/ping"))
 
 	// create auth handler with both UserService and TokenService
-	authHandler := handlers.NewAuthHandler(s.UserService, s.TokenService)
+	authHandler := handlers.NewAuthHandler(s.UserService, s.TokenService, s.PasswordResetService)
 
 	mux.Post("/authenticate", authHandler.Authenticate)
 	mux.Post("/register", authHandler.Register)
 	mux.Post("/refresh", authHandler.Refresh)
 	mux.Post("/validate", authHandler.Validate)
 
+	// Public recovery routes carry their own rate limit; the rest of the public
+	// surface is unchanged.
+	recoveryRoutes := mux.With(authmiddleware.RateLimit(s.passwordLimiter))
+	recoveryRoutes.Post("/password/forgot", authHandler.ForgotPassword)
+	recoveryRoutes.Post("/password/reset", authHandler.ResetPassword)
+
 	authMiddleware := authmiddleware.Auth(s.TokenService)
 	protectedRoutes := mux.With(authMiddleware)
 	protectedRoutes.Post("/logout", authHandler.Logout)
 	protectedRoutes.Get("/me", authHandler.GetMe)
+	protectedRoutes.Post("/password/change", authHandler.ChangePassword)
 
 	return mux
 }

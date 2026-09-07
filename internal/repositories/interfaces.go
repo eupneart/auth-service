@@ -27,3 +27,11 @@ type TokenStore interface {
 	CleanupExpiredTokens(ctx context.Context) error
 	GetAllTokensForUser(ctx context.Context, userID string) ([]models.TokenMetadata, error)
 }
+
+type PasswordResetTokenStore interface {
+	CreatePasswordResetToken(ctx context.Context, token *models.PasswordResetToken) error
+	// ConsumePasswordResetToken atomically marks a valid token as consumed and
+	// returns it, or ErrResetTokenNotFound if it is missing, expired, or already used.
+	ConsumePasswordResetToken(ctx context.Context, tokenHash string) (*models.PasswordResetToken, error)
+	InvalidatePasswordResetTokensForUser(ctx context.Context, userID int64) error
+}

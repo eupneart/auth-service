@@ -7,11 +7,13 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/eupneart/auth-service/internal/api/middleware"
 	"github.com/eupneart/auth-service/internal/models"
+	"github.com/eupneart/auth-service/internal/repositories"
 	"github.com/eupneart/auth-service/internal/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -134,7 +136,7 @@ func TestAuthHandler_Authenticate_InvalidEmailFormat(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	userService := services.New(mockRepo)
 	mockTokenService := new(MockTokenService)
-	handler := NewAuthHandler(userService, mockTokenService)
+	handler := NewAuthHandler(userService, mockTokenService, nil)
 
 	testCases := []struct {
 		name  string
@@ -177,7 +179,7 @@ func TestAuthHandler_Authenticate_NilUser(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	userService := services.New(mockRepo)
 	mockTokenService := new(MockTokenService)
-	handler := NewAuthHandler(userService, mockTokenService)
+	handler := NewAuthHandler(userService, mockTokenService, nil)
 
 	// Mock GetByEmail returning nil (user not found)
 	mockRepo.On("GetByEmail", mock.Anything, "notfound@example.com").Return(nil, nil)
@@ -206,7 +208,7 @@ func TestAuthHandler_Authenticate_ValidCredentials(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	userService := services.New(mockRepo)
 	mockTokenService := new(MockTokenService)
-	handler := NewAuthHandler(userService, mockTokenService)
+	handler := NewAuthHandler(userService, mockTokenService, nil)
 
 	// Create a test user with hashed password
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("Password123!"), 12)
@@ -265,7 +267,7 @@ func TestAuthHandler_Authenticate_MissingCredentials(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	userService := services.New(mockRepo)
 	mockTokenService := new(MockTokenService)
-	handler := NewAuthHandler(userService, mockTokenService)
+	handler := NewAuthHandler(userService, mockTokenService, nil)
 
 	testCases := []struct {
 		name     string
@@ -304,7 +306,7 @@ func TestAuthHandler_Authenticate_InactiveUser(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	userService := services.New(mockRepo)
 	mockTokenService := new(MockTokenService)
-	handler := NewAuthHandler(userService, mockTokenService)
+	handler := NewAuthHandler(userService, mockTokenService, nil)
 
 	inactiveUser := &models.User{
 		ID:       2,
@@ -334,7 +336,7 @@ func TestAuthHandler_Authenticate_InvalidPassword(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	userService := services.New(mockRepo)
 	mockTokenService := new(MockTokenService)
-	handler := NewAuthHandler(userService, mockTokenService)
+	handler := NewAuthHandler(userService, mockTokenService, nil)
 
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("CorrectPassword123!"), 12)
 	testUser := &models.User{
@@ -369,7 +371,7 @@ func TestAuthHandler_Authenticate_DatabaseError(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	userService := services.New(mockRepo)
 	mockTokenService := new(MockTokenService)
-	handler := NewAuthHandler(userService, mockTokenService)
+	handler := NewAuthHandler(userService, mockTokenService, nil)
 
 	mockRepo.On("GetByEmail", mock.Anything, "user@example.com").
 		Return(nil, errors.New("database connection failed"))
@@ -393,7 +395,7 @@ func TestAuthHandler_Authenticate_TokenGenerationError(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	userService := services.New(mockRepo)
 	mockTokenService := new(MockTokenService)
-	handler := NewAuthHandler(userService, mockTokenService)
+	handler := NewAuthHandler(userService, mockTokenService, nil)
 
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("Password123!"), 12)
 	testUser := &models.User{
@@ -427,7 +429,7 @@ func TestAuthHandler_Authenticate_LastLoginUpdateFailure(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	userService := services.New(mockRepo)
 	mockTokenService := new(MockTokenService)
-	handler := NewAuthHandler(userService, mockTokenService)
+	handler := NewAuthHandler(userService, mockTokenService, nil)
 
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("Password123!"), 12)
 	testUser := &models.User{
@@ -466,7 +468,7 @@ func TestAuthHandler_Authenticate_LastLoginUpdateFailure(t *testing.T) {
 
 func TestAuthHandler_Refresh(t *testing.T) {
 	mockTokenService := new(MockTokenService)
-	handler := NewAuthHandler(nil, mockTokenService)
+	handler := NewAuthHandler(nil, mockTokenService, nil)
 	mockTokenService.On("RefreshAccessToken", mock.Anything, "refresh-token").Return("new-access-token", nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/refresh",
@@ -481,7 +483,7 @@ func TestAuthHandler_Refresh(t *testing.T) {
 
 func TestAuthHandler_ValidateInvalidTokenReturnsResult(t *testing.T) {
 	mockTokenService := new(MockTokenService)
-	handler := NewAuthHandler(nil, mockTokenService)
+	handler := NewAuthHandler(nil, mockTokenService, nil)
 	mockTokenService.On("ValidateToken", mock.Anything, "bad-token").
 		Return(nil, errors.New("token has been revoked"))
 
@@ -497,7 +499,7 @@ func TestAuthHandler_ValidateInvalidTokenReturnsResult(t *testing.T) {
 
 func TestAuthHandler_Logout(t *testing.T) {
 	mockTokenService := new(MockTokenService)
-	handler := NewAuthHandler(nil, mockTokenService)
+	handler := NewAuthHandler(nil, mockTokenService, nil)
 	mockTokenService.On("ValidateToken", mock.Anything, "access-token").
 		Return(&models.Claims{UserID: 42, TokenType: models.TokenTypeAccess}, nil)
 	mockTokenService.On("RevokeToken", mock.Anything, "access-token").Return(nil)
@@ -514,7 +516,7 @@ func TestAuthHandler_Logout(t *testing.T) {
 
 func TestAuthHandler_GetMeOmitsPassword(t *testing.T) {
 	mockRepo := new(MockUserRepository)
-	handler := NewAuthHandler(services.New(mockRepo), new(MockTokenService))
+	handler := NewAuthHandler(services.New(mockRepo), new(MockTokenService), nil)
 	user := &models.User{
 		ID:       42,
 		Email:    "user@example.com",
@@ -555,7 +557,7 @@ func TestAuthHandler_RefreshErrors(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			tokenService := new(MockTokenService)
-			handler := NewAuthHandler(nil, tokenService)
+			handler := NewAuthHandler(nil, tokenService, nil)
 			if tc.serviceErr != nil {
 				tokenService.On("RefreshAccessToken", mock.Anything, mock.AnythingOfType("string")).Return("", tc.serviceErr)
 			}
@@ -574,7 +576,7 @@ func TestAuthHandler_RefreshErrors(t *testing.T) {
 
 func TestAuthHandler_ValidateValidToken(t *testing.T) {
 	tokenService := new(MockTokenService)
-	handler := NewAuthHandler(nil, tokenService)
+	handler := NewAuthHandler(nil, tokenService, nil)
 	tokenService.On("ValidateToken", mock.Anything, "valid-token").
 		Return(&models.Claims{UserID: 1}, nil)
 
@@ -593,7 +595,7 @@ func TestAuthHandler_ValidateInvalidTokenVariants(t *testing.T) {
 	for _, token := range []string{"expired", "revoked"} {
 		t.Run(token, func(t *testing.T) {
 			tokenService := new(MockTokenService)
-			handler := NewAuthHandler(nil, tokenService)
+			handler := NewAuthHandler(nil, tokenService, nil)
 			tokenService.On("ValidateToken", mock.Anything, token).
 				Return(nil, errors.New("token is invalid"))
 
@@ -611,7 +613,7 @@ func TestAuthHandler_ValidateInvalidTokenVariants(t *testing.T) {
 
 func TestAuthHandler_LogoutRevocationFailure(t *testing.T) {
 	tokenService := new(MockTokenService)
-	handler := NewAuthHandler(nil, tokenService)
+	handler := NewAuthHandler(nil, tokenService, nil)
 	tokenService.On("ValidateToken", mock.Anything, "access-token").
 		Return(&models.Claims{UserID: 1, TokenType: models.TokenTypeAccess}, nil)
 	tokenService.On("RevokeToken", mock.Anything, "access-token").
@@ -628,7 +630,7 @@ func TestAuthHandler_LogoutRevocationFailure(t *testing.T) {
 
 func TestAuthHandler_GetMeInactiveUser(t *testing.T) {
 	repo := new(MockUserRepository)
-	handler := NewAuthHandler(services.New(repo), new(MockTokenService))
+	handler := NewAuthHandler(services.New(repo), new(MockTokenService), nil)
 	repo.On("GetByID", mock.Anything, int64(42)).
 		Return(&models.User{ID: 42, IsActive: false}, nil)
 	tokenService := new(MockTokenService)
@@ -647,7 +649,7 @@ func TestAuthHandler_GetMeInactiveUser(t *testing.T) {
 
 func TestAuthHandler_GetMeMissingUser(t *testing.T) {
 	repo := new(MockUserRepository)
-	handler := NewAuthHandler(services.New(repo), new(MockTokenService))
+	handler := NewAuthHandler(services.New(repo), new(MockTokenService), nil)
 	repo.On("GetByID", mock.Anything, int64(42)).Return(nil, nil)
 	tokenService := new(MockTokenService)
 	tokenService.On("ValidateToken", mock.Anything, "access-token").
@@ -660,4 +662,379 @@ func TestAuthHandler_GetMeMissingUser(t *testing.T) {
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
 	repo.AssertExpectations(t)
+}
+
+// ---------------------------------------------------------- ChangePassword
+
+// fakeResetTokenStore records created tokens and returns a configurable result
+// from Consume, so both the happy path and the unusable-token path are testable.
+type fakeResetTokenStore struct {
+	mu         sync.Mutex
+	created    []*models.PasswordResetToken
+	consumed   *models.PasswordResetToken
+	consumeErr error
+}
+
+func (f *fakeResetTokenStore) CreatePasswordResetToken(_ context.Context, token *models.PasswordResetToken) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.created = append(f.created, token)
+	return nil
+}
+
+func (f *fakeResetTokenStore) ConsumePasswordResetToken(context.Context, string) (*models.PasswordResetToken, error) {
+	if f.consumeErr != nil {
+		return nil, f.consumeErr
+	}
+	return f.consumed, nil
+}
+
+func (f *fakeResetTokenStore) InvalidatePasswordResetTokensForUser(context.Context, int64) error {
+	return nil
+}
+
+func (f *fakeResetTokenStore) createdCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.created)
+}
+
+// fakeResetMailer is written to from the detached goroutine ForgotPassword
+// starts, so every field is guarded.
+type fakeResetMailer struct {
+	mu        sync.Mutex
+	recipient string
+	resetURL  string
+	sends     int
+}
+
+func (f *fakeResetMailer) SendPasswordReset(_ context.Context, recipient, resetURL string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.recipient = recipient
+	f.resetURL = resetURL
+	f.sends++
+	return nil
+}
+
+func (f *fakeResetMailer) snapshot() (recipient, resetURL string, sends int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.recipient, f.resetURL, f.sends
+}
+
+// newChangePasswordHandler builds a handler over a real PasswordResetService so
+// the orchestration runs; only the repositories and mailer are stubbed.
+func newPasswordHandler(repo *MockUserRepository, tokenService *MockTokenService, tokens *fakeResetTokenStore, mailer *fakeResetMailer) *AuthHandler {
+	userService := services.New(repo)
+	resetService := services.NewPasswordResetService(
+		services.PasswordResetConfig{
+			BaseURL:       "https://example.com/reset-password",
+			TokenLifetime: 15 * time.Minute,
+		},
+		userService,
+		repo,
+		tokens,
+		tokenService,
+		mailer,
+	)
+	return NewAuthHandler(userService, tokenService, resetService)
+}
+
+func newChangePasswordHandler(repo *MockUserRepository, tokenService *MockTokenService) *AuthHandler {
+	return newPasswordHandler(repo, tokenService,
+		&fakeResetTokenStore{consumeErr: repositories.ErrResetTokenNotFound},
+		&fakeResetMailer{})
+}
+
+func changePasswordRequest(t *testing.T, handler *AuthHandler, tokenService *MockTokenService, body string) *httptest.ResponseRecorder {
+	t.Helper()
+
+	req := httptest.NewRequest(http.MethodPost, "/password/change", bytes.NewBufferString(body))
+	req.Header.Set("Authorization", "Bearer access-token")
+	w := httptest.NewRecorder()
+	middleware.Auth(tokenService)(http.HandlerFunc(handler.ChangePassword)).ServeHTTP(w, req)
+	return w
+}
+
+func userWithPassword(t *testing.T, plain string) *models.User {
+	t.Helper()
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(plain), bcrypt.MinCost)
+	require.NoError(t, err)
+	return &models.User{ID: 42, Email: "user@example.com", Password: string(hashed), IsActive: true}
+}
+
+func TestAuthHandler_ChangePasswordSuccess(t *testing.T) {
+	repo := new(MockUserRepository)
+	tokenService := new(MockTokenService)
+	tokenService.On("ValidateToken", mock.Anything, "access-token").
+		Return(&models.Claims{UserID: 42, TokenType: models.TokenTypeAccess}, nil)
+	repo.On("GetByID", mock.Anything, int64(42)).Return(userWithPassword(t, "OldPassw0rd!"), nil)
+	tokenService.On("RevokeAllTokensForUser", mock.Anything, int64(42)).Return(nil)
+	repo.On("UpdatePassword", mock.Anything, int64(42), mock.Anything).Return(nil)
+
+	handler := newChangePasswordHandler(repo, tokenService)
+	w := changePasswordRequest(t, handler, tokenService,
+		`{"current_password":"OldPassw0rd!","new_password":"NewPassw0rd!"}`)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.NotContains(t, w.Body.String(), "NewPassw0rd!")
+	repo.AssertExpectations(t)
+	tokenService.AssertExpectations(t)
+}
+
+func TestAuthHandler_ChangePasswordWrongCurrentPassword(t *testing.T) {
+	repo := new(MockUserRepository)
+	tokenService := new(MockTokenService)
+	tokenService.On("ValidateToken", mock.Anything, "access-token").
+		Return(&models.Claims{UserID: 42, TokenType: models.TokenTypeAccess}, nil)
+	repo.On("GetByID", mock.Anything, int64(42)).Return(userWithPassword(t, "OldPassw0rd!"), nil)
+
+	handler := newChangePasswordHandler(repo, tokenService)
+	w := changePasswordRequest(t, handler, tokenService,
+		`{"current_password":"WrongPassw0rd!","new_password":"NewPassw0rd!"}`)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	// Neither the password nor the sessions may be touched on a failed attempt.
+	repo.AssertNotCalled(t, "UpdatePassword", mock.Anything, mock.Anything, mock.Anything)
+	tokenService.AssertNotCalled(t, "RevokeAllTokensForUser", mock.Anything, mock.Anything)
+}
+
+func TestAuthHandler_ChangePasswordRejectsWeakNewPassword(t *testing.T) {
+	repo := new(MockUserRepository)
+	tokenService := new(MockTokenService)
+	tokenService.On("ValidateToken", mock.Anything, "access-token").
+		Return(&models.Claims{UserID: 42, TokenType: models.TokenTypeAccess}, nil)
+
+	handler := newChangePasswordHandler(repo, tokenService)
+	w := changePasswordRequest(t, handler, tokenService,
+		`{"current_password":"OldPassw0rd!","new_password":"weak"}`)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	repo.AssertNotCalled(t, "UpdatePassword", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestAuthHandler_ChangePasswordMissingFields(t *testing.T) {
+	testCases := []struct {
+		name string
+		body string
+	}{
+		{"missing current password", `{"new_password":"NewPassw0rd!"}`},
+		{"missing new password", `{"current_password":"OldPassw0rd!"}`},
+		{"empty body", `{}`},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := new(MockUserRepository)
+			tokenService := new(MockTokenService)
+			tokenService.On("ValidateToken", mock.Anything, "access-token").
+				Return(&models.Claims{UserID: 42, TokenType: models.TokenTypeAccess}, nil)
+
+			handler := newChangePasswordHandler(repo, tokenService)
+			w := changePasswordRequest(t, handler, tokenService, tc.body)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+			repo.AssertNotCalled(t, "GetByID", mock.Anything, mock.Anything)
+		})
+	}
+}
+
+func TestAuthHandler_ChangePasswordRequiresAuthentication(t *testing.T) {
+	repo := new(MockUserRepository)
+	tokenService := new(MockTokenService)
+	handler := newChangePasswordHandler(repo, tokenService)
+
+	req := httptest.NewRequest(http.MethodPost, "/password/change",
+		bytes.NewBufferString(`{"current_password":"OldPassw0rd!","new_password":"NewPassw0rd!"}`))
+	w := httptest.NewRecorder()
+	middleware.Auth(tokenService)(http.HandlerFunc(handler.ChangePassword)).ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	repo.AssertNotCalled(t, "UpdatePassword", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// ------------------------------------------------- ForgotPassword / ResetPassword
+
+func forgotPasswordRequest(handler *AuthHandler, body string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, "/password/forgot", bytes.NewBufferString(body))
+	w := httptest.NewRecorder()
+	handler.ForgotPassword(w, req)
+	return w
+}
+
+func resetPasswordRequest(handler *AuthHandler, body string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, "/password/reset", bytes.NewBufferString(body))
+	w := httptest.NewRecorder()
+	handler.ResetPassword(w, req)
+	return w
+}
+
+// Unknown, inactive and active addresses must be indistinguishable in status
+// code and body.
+func TestAuthHandler_ForgotPasswordResponseIsUniform(t *testing.T) {
+	testCases := []struct {
+		name string
+		user *models.User
+	}{
+		{"unknown account", nil},
+		{"inactive account", &models.User{ID: 42, Email: "user@example.com", IsActive: false}},
+		{"active account", &models.User{ID: 42, Email: "user@example.com", IsActive: true}},
+	}
+
+	var bodies []string
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := new(MockUserRepository)
+			repo.On("GetByEmail", mock.Anything, "user@example.com").Return(tc.user, nil)
+			handler := newPasswordHandler(repo, new(MockTokenService), &fakeResetTokenStore{}, &fakeResetMailer{})
+
+			w := forgotPasswordRequest(handler, `{"email":"user@example.com"}`)
+
+			assert.Equal(t, http.StatusAccepted, w.Code)
+			assert.Contains(t, w.Body.String(), forgotPasswordMessage)
+			bodies = append(bodies, w.Body.String())
+		})
+	}
+
+	for _, body := range bodies {
+		assert.Equal(t, bodies[0], body, "responses must not vary with account state")
+	}
+}
+
+func TestAuthHandler_ForgotPasswordSendsLinkOnlyForActiveAccount(t *testing.T) {
+	testCases := []struct {
+		name      string
+		user      *models.User
+		wantSends int
+	}{
+		{"active account receives a link", &models.User{ID: 42, Email: "user@example.com", IsActive: true}, 1},
+		{"inactive account receives nothing", &models.User{ID: 42, Email: "user@example.com", IsActive: false}, 0},
+		{"unknown account receives nothing", nil, 0},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := new(MockUserRepository)
+			repo.On("GetByEmail", mock.Anything, "user@example.com").Return(tc.user, nil)
+			tokens := &fakeResetTokenStore{}
+			mailer := &fakeResetMailer{}
+			handler := newPasswordHandler(repo, new(MockTokenService), tokens, mailer)
+
+			require.Equal(t, http.StatusAccepted,
+				forgotPasswordRequest(handler, `{"email":"user@example.com"}`).Code)
+
+			// The work runs on a goroutine the handler does not wait for.
+			assert.Eventually(t, func() bool {
+				_, _, sends := mailer.snapshot()
+				return sends == tc.wantSends && tokens.createdCount() == tc.wantSends
+			}, time.Second, 10*time.Millisecond)
+
+			if tc.wantSends > 0 {
+				recipient, resetURL, _ := mailer.snapshot()
+				assert.Equal(t, "user@example.com", recipient)
+				assert.Contains(t, resetURL, "https://example.com/reset-password?token=")
+			}
+		})
+	}
+}
+
+func TestAuthHandler_ForgotPasswordRejectsInvalidEmail(t *testing.T) {
+	repo := new(MockUserRepository)
+	handler := newPasswordHandler(repo, new(MockTokenService), &fakeResetTokenStore{}, &fakeResetMailer{})
+
+	w := forgotPasswordRequest(handler, `{"email":"not-an-email"}`)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	repo.AssertNotCalled(t, "GetByEmail", mock.Anything, mock.Anything)
+}
+
+// Repeated requests for one address stop producing mail, while the response
+// stays identical.
+func TestAuthHandler_ForgotPasswordThrottlesPerEmail(t *testing.T) {
+	repo := new(MockUserRepository)
+	repo.On("GetByEmail", mock.Anything, "user@example.com").
+		Return(&models.User{ID: 42, Email: "user@example.com", IsActive: true}, nil)
+	tokens := &fakeResetTokenStore{}
+	mailer := &fakeResetMailer{}
+	handler := newPasswordHandler(repo, new(MockTokenService), tokens, mailer)
+
+	const attempts = 8
+	for range attempts {
+		assert.Equal(t, http.StatusAccepted,
+			forgotPasswordRequest(handler, `{"email":"user@example.com"}`).Code)
+	}
+
+	assert.Eventually(t, func() bool {
+		_, _, sends := mailer.snapshot()
+		return sends > 0 && sends < attempts
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestAuthHandler_ResetPasswordSuccess(t *testing.T) {
+	repo := new(MockUserRepository)
+	tokenService := new(MockTokenService)
+	tokenService.On("RevokeAllTokensForUser", mock.Anything, int64(42)).Return(nil)
+	repo.On("UpdatePassword", mock.Anything, int64(42), mock.Anything).Return(nil)
+
+	tokens := &fakeResetTokenStore{consumed: &models.PasswordResetToken{ID: 1, UserID: 42}}
+	handler := newPasswordHandler(repo, tokenService, tokens, &fakeResetMailer{})
+
+	w := resetPasswordRequest(handler, `{"token":"raw-token","new_password":"NewPassw0rd!"}`)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	// Recovery must not hand back a session; the user signs in again.
+	assert.NotContains(t, w.Body.String(), "access_token")
+	assert.NotContains(t, w.Body.String(), "NewPassw0rd!")
+	repo.AssertExpectations(t)
+	tokenService.AssertExpectations(t)
+}
+
+func TestAuthHandler_ResetPasswordRejectsUnusableToken(t *testing.T) {
+	repo := new(MockUserRepository)
+	tokenService := new(MockTokenService)
+	tokens := &fakeResetTokenStore{consumeErr: repositories.ErrResetTokenNotFound}
+	handler := newPasswordHandler(repo, tokenService, tokens, &fakeResetMailer{})
+
+	w := resetPasswordRequest(handler, `{"token":"raw-token","new_password":"NewPassw0rd!"}`)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), "invalid or expired reset token")
+	repo.AssertNotCalled(t, "UpdatePassword", mock.Anything, mock.Anything, mock.Anything)
+	tokenService.AssertNotCalled(t, "RevokeAllTokensForUser", mock.Anything, mock.Anything)
+}
+
+func TestAuthHandler_ResetPasswordRejectsWeakPassword(t *testing.T) {
+	repo := new(MockUserRepository)
+	tokens := &fakeResetTokenStore{consumed: &models.PasswordResetToken{ID: 1, UserID: 42}}
+	handler := newPasswordHandler(repo, new(MockTokenService), tokens, &fakeResetMailer{})
+
+	w := resetPasswordRequest(handler, `{"token":"raw-token","new_password":"weak"}`)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	repo.AssertNotCalled(t, "UpdatePassword", mock.Anything, mock.Anything, mock.Anything)
+}
+
+func TestAuthHandler_ResetPasswordMissingFields(t *testing.T) {
+	testCases := []struct {
+		name string
+		body string
+	}{
+		{"missing token", `{"new_password":"NewPassw0rd!"}`},
+		{"missing password", `{"token":"raw-token"}`},
+		{"empty body", `{}`},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := new(MockUserRepository)
+			handler := newPasswordHandler(repo, new(MockTokenService), &fakeResetTokenStore{}, &fakeResetMailer{})
+
+			w := resetPasswordRequest(handler, tc.body)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+			repo.AssertNotCalled(t, "UpdatePassword", mock.Anything, mock.Anything, mock.Anything)
+		})
+	}
 }

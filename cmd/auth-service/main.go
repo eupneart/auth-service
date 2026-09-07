@@ -11,6 +11,7 @@ import (
 
 	"github.com/eupneart/auth-service/internal/api"
 	"github.com/eupneart/auth-service/internal/db"
+	"github.com/eupneart/auth-service/internal/mail"
 	"github.com/eupneart/auth-service/internal/repositories"
 	"github.com/eupneart/auth-service/internal/services"
 	"github.com/eupneart/auth-service/pkg/env"
@@ -18,6 +19,10 @@ import (
 	_ "github.com/jackc/pgx/v4"
 	_ "github.com/jackc/pgx/v4/stdlib"
 )
+
+// devResetMailbox collects reset links outside production. The .log suffix is
+// already covered by .gitignore.
+const devResetMailbox = ".reset-links.log"
 
 func main() {
 	// Initialize configuration using your env utility
@@ -49,6 +54,7 @@ func main() {
 	// Initialize repositories
 	userRepo := repositories.NewUserRepo(conn)
 	tokenRepo := repositories.NewTokenRepo(conn)
+	passwordResetRepo := repositories.NewPasswordResetTokenRepo(conn)
 
 	// Create TokenService configuration using .env.* cfg
 	tokenConfig := services.TokenServiceConfig{
@@ -62,6 +68,36 @@ func main() {
 	// Create services
 	userService := services.New(userRepo)
 	tokenService := services.NewTokenService(tokenConfig, userRepo, tokenRepo, logger)
+
+	// Production sends real email; development appends links to a local file so
+	// the flow is testable without pretending delivery happened.
+	var resetMailer services.PasswordResetMailer
+	if env.IsProduction() {
+		resetMailer = mail.NewSMTPMailer(mail.SMTPConfig{
+			Host:     cfg.SMTPHost,
+			Port:     cfg.SMTPPort,
+			Username: cfg.SMTPUsername,
+			Password: cfg.SMTPPassword,
+			From:     cfg.SMTPFrom,
+		})
+	} else {
+		resetMailer = mail.NewFileMailer(devResetMailbox)
+		logger.Warn("Using development file mailer for password resets",
+			slog.String("path", devResetMailbox))
+	}
+
+	passwordResetConfig := services.PasswordResetConfig{
+		BaseURL:       cfg.PasswordResetBaseURL,
+		TokenLifetime: env.GetEnvAsDuration("PASSWORD_RESET_TOKEN_LIFETIME", "15m"),
+	}
+	passwordResetService := services.NewPasswordResetService(
+		passwordResetConfig,
+		userService,
+		userRepo,
+		passwordResetRepo,
+		tokenService,
+		resetMailer,
+	)
 
 	logger.Info("Services initialized successfully")
 
@@ -84,7 +120,7 @@ func main() {
 	logger.Info("Expired token cleanup scheduled", slog.Duration("interval", cleanupInterval))
 
 	// Create the API server
-	server := api.NewServer(cfg, userService, tokenService)
+	server := api.NewServer(cfg, userService, tokenService, passwordResetService)
 
 	// Log configuration (be careful not to log sensitive data)
 	logger.Info("Server configuration",

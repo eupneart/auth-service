@@ -15,15 +15,21 @@ import (
 	"github.com/eupneart/auth-service/utils"
 )
 
+// forgotPasswordTimeout bounds the detached work started by ForgotPassword,
+// which outlives the request context.
+const forgotPasswordTimeout = 30 * time.Second
+
 type AuthHandler struct {
-	UserService  *services.UserService
-	TokenService services.TokenService
+	UserService          *services.UserService
+	TokenService         services.TokenService
+	PasswordResetService *services.PasswordResetService
 }
 
-func NewAuthHandler(userService *services.UserService, tokenService services.TokenService) *AuthHandler {
+func NewAuthHandler(userService *services.UserService, tokenService services.TokenService, passwordResetService *services.PasswordResetService) *AuthHandler {
 	return &AuthHandler{
-		UserService:  userService,
-		TokenService: tokenService,
+		UserService:          userService,
+		TokenService:         tokenService,
+		PasswordResetService: passwordResetService,
 	}
 }
 
@@ -393,6 +399,168 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	payload := utils.JsonResponse{Error: false, Message: "Successfully logged out"}
+	_ = utils.WriteJSON(w, payload, http.StatusOK)
+}
+
+// forgotPasswordMessage is returned for every well-formed request, whether the
+// address is unknown, inactive, or active. Callers must not be able to tell the
+// cases apart.
+const forgotPasswordMessage = "If an account exists for that address, a reset link has been sent."
+
+func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
+	var requestPayload struct {
+		Email string `json:"email"`
+	}
+
+	if err := utils.ReadJSON(w, r, &requestPayload); err != nil {
+		utils.ErrorJSON(w, err, http.StatusBadRequest)
+		return
+	}
+
+	// Format is client-checkable, so rejecting it leaks nothing about accounts.
+	if !utils.IsValidEmail(requestPayload.Email) {
+		utils.ErrorJSON(w, errors.New("invalid email format"), http.StatusBadRequest)
+		return
+	}
+
+	// Responding before doing the work keeps the response time independent of
+	// whether the account exists; otherwise the lookup, token insert and mail
+	// send would make existing addresses measurably slower. The request context
+	// is not reused because it is cancelled as soon as this handler returns.
+	go func(email string) {
+		// No HTTP middleware can recover a panic raised off the request
+		// goroutine, so an unguarded one here would take down the process.
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				slog.Error("password reset request panicked",
+					"panic", recovered,
+					"method", "AuthHandler.ForgotPassword")
+			}
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), forgotPasswordTimeout)
+		defer cancel()
+
+		if err := h.PasswordResetService.RequestReset(ctx, email); err != nil {
+			slog.Error("failed to process password reset request",
+				"error", err,
+				"method", "AuthHandler.ForgotPassword")
+		}
+	}(requestPayload.Email)
+
+	payload := utils.JsonResponse{Error: false, Message: forgotPasswordMessage}
+	_ = utils.WriteJSON(w, payload, http.StatusAccepted)
+}
+
+func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
+	var requestPayload struct {
+		Token       string `json:"token"`
+		NewPassword string `json:"new_password"`
+	}
+
+	if err := utils.ReadJSON(w, r, &requestPayload); err != nil {
+		utils.ErrorJSON(w, err, http.StatusBadRequest)
+		return
+	}
+
+	if requestPayload.Token == "" || requestPayload.NewPassword == "" {
+		utils.ErrorJSON(w, errors.New("token and new_password are required"), http.StatusBadRequest)
+		return
+	}
+
+	err := h.PasswordResetService.ResetWithToken(r.Context(), requestPayload.Token, requestPayload.NewPassword)
+
+	switch {
+	case err == nil:
+	case errors.Is(err, services.ErrWeakPassword):
+		utils.ErrorJSON(w, err, http.StatusBadRequest)
+		return
+	case errors.Is(err, services.ErrInvalidResetToken):
+		// Missing, expired and already-used tokens share this response so it
+		// cannot be used to probe which links exist.
+		slog.Warn("password reset attempted with an unusable token",
+			"method", "AuthHandler.ResetPassword",
+			"remote_addr", r.RemoteAddr)
+		utils.ErrorJSON(w, errors.New("invalid or expired reset token"), http.StatusBadRequest)
+		return
+	default:
+		slog.Error("failed to reset password",
+			"error", err,
+			"method", "AuthHandler.ResetPassword")
+		utils.ErrorJSON(w, errors.New("failed to reset password"), http.StatusInternalServerError)
+		return
+	}
+
+	// No tokens are issued here: the user must sign in with the new password.
+	payload := utils.JsonResponse{
+		Error:   false,
+		Message: "Password reset successfully. Please sign in with your new password.",
+	}
+	_ = utils.WriteJSON(w, payload, http.StatusOK)
+}
+
+func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
+	// The user is taken from verified claims; a user ID in the body would let a
+	// caller change someone else's password.
+	claims := middleware.GetClaimsFromContext(r)
+	if claims == nil {
+		utils.ErrorJSON(w, errors.New("claims not found in context"), http.StatusUnauthorized)
+		return
+	}
+
+	var requestPayload struct {
+		CurrentPassword string `json:"current_password"`
+		NewPassword     string `json:"new_password"`
+	}
+
+	if err := utils.ReadJSON(w, r, &requestPayload); err != nil {
+		slog.Error("failed to read JSON payload for password change",
+			"error", err,
+			"user_id", claims.UserID,
+			"method", "AuthHandler.ChangePassword",
+			"remote_addr", r.RemoteAddr)
+		utils.ErrorJSON(w, err, http.StatusBadRequest)
+		return
+	}
+
+	if requestPayload.CurrentPassword == "" || requestPayload.NewPassword == "" {
+		utils.ErrorJSON(w, errors.New("current_password and new_password are required"), http.StatusBadRequest)
+		return
+	}
+
+	err := h.PasswordResetService.ChangePassword(r.Context(), claims.UserID,
+		requestPayload.CurrentPassword, requestPayload.NewPassword)
+
+	switch {
+	case err == nil:
+	case errors.Is(err, services.ErrWeakPassword):
+		utils.ErrorJSON(w, err, http.StatusBadRequest)
+		return
+	case errors.Is(err, services.ErrInvalidCredentials):
+		slog.Warn("password change attempt with incorrect current password",
+			"user_id", claims.UserID,
+			"method", "AuthHandler.ChangePassword",
+			"remote_addr", r.RemoteAddr)
+		utils.ErrorJSON(w, errors.New("current password is incorrect"), http.StatusUnauthorized)
+		return
+	default:
+		slog.Error("failed to change password",
+			"error", err,
+			"user_id", claims.UserID,
+			"method", "AuthHandler.ChangePassword")
+		utils.ErrorJSON(w, errors.New("failed to change password"), http.StatusInternalServerError)
+		return
+	}
+
+	slog.Info("password changed",
+		"user_id", claims.UserID,
+		"method", "AuthHandler.ChangePassword",
+		"remote_addr", r.RemoteAddr)
+
+	payload := utils.JsonResponse{
+		Error:   false,
+		Message: "Password changed successfully. All sessions have been signed out.",
+	}
 	_ = utils.WriteJSON(w, payload, http.StatusOK)
 }
 

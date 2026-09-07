@@ -68,7 +68,7 @@ func (lifecycleUserRepo) Insert(context.Context, models.User) (int64, error) {
 
 func TestTokenLifecycle(t *testing.T) {
 	tokenService := &lifecycleTokenService{}
-	server := api.NewServer(nil, services.New(lifecycleUserRepo{}), tokenService)
+	server := api.NewServer(nil, services.New(lifecycleUserRepo{}), tokenService, nil)
 	router := server.Routes()
 
 	refreshResponse := request(t, router, http.MethodPost, "/refresh",

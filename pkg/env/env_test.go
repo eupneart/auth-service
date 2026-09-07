@@ -98,7 +98,8 @@ func TestLoadEnv_EnvironmentSpecificFiles(t *testing.T) {
 	t.Setenv("DB_PASSWORD", "prod-pass")
 	t.Setenv("DB_NAME", "prod-db")
 	t.Setenv("JWT_SECRET", "test-secret")
-	
+	setProductionMailVars(t)
+
 	// Load environment (will try to load .env.production but fall back to env vars)
 	LoadEnv()
 	
@@ -151,6 +152,7 @@ func TestLoadEnv_ProductionRequiredVars(t *testing.T) {
 	t.Setenv("DB_PASSWORD", "prod-db-password")
 	t.Setenv("DB_NAME", "prod-db-name")
 	t.Setenv("JWT_SECRET", "prod-jwt-secret")
+	setProductionMailVars(t)
 
 	LoadEnv()
 
@@ -175,6 +177,7 @@ func TestLoadEnv_ProductionWithOptionalDefaults(t *testing.T) {
 	t.Setenv("DB_PASSWORD", "prod-pass")
 	t.Setenv("DB_NAME", "prod-db")
 	t.Setenv("JWT_SECRET", "prod-secret")
+	setProductionMailVars(t)
 	// Do NOT set DB_PORT and DB_USER - should use defaults
 
 	LoadEnv()
@@ -240,6 +243,7 @@ func TestIsProduction(t *testing.T) {
 	t.Setenv("DB_PASSWORD", "prod-pass")
 	t.Setenv("DB_NAME", "prod-db")
 	t.Setenv("JWT_SECRET", "prod-secret")
+	setProductionMailVars(t)
 	LoadEnv()
 	assert.True(t, IsProduction())
 	assert.False(t, IsDevelopment())
@@ -274,6 +278,7 @@ func TestIsDevelopment(t *testing.T) {
 	t.Setenv("DB_PASSWORD", "prod-pass")
 	t.Setenv("DB_NAME", "prod-db")
 	t.Setenv("JWT_SECRET", "prod-secret")
+	setProductionMailVars(t)
 	LoadEnv()
 	assert.False(t, IsDevelopment())
 }
@@ -310,11 +315,26 @@ func TestJWTConfiguration(t *testing.T) {
 }
 
 // Helper function to clean up environment variables after tests
+// setProductionMailVars sets the password-reset and SMTP variables that
+// production requires, so tests exercising other production settings do not
+// trip the fail-fast check.
+func setProductionMailVars(t *testing.T) {
+	t.Helper()
+
+	t.Setenv("PASSWORD_RESET_BASE_URL", "https://eupneart.com/reset-password")
+	t.Setenv("SMTP_HOST", "smtp.example.com")
+	t.Setenv("SMTP_USERNAME", "mailer")
+	t.Setenv("SMTP_PASSWORD", "mailer-pass")
+	t.Setenv("SMTP_FROM", "no-reply@eupneart.com")
+}
+
 func cleanupEnvVars() {
 	envVars := []string{
 		"DB_HOST", "DB_PORT", "DB_USER", "DB_PASSWORD", "DB_NAME",
 		"JWT_SECRET", "JWT_ISSUER", "APP_PORT", "APP_ENV",
 		"TEST_INT", "TEST_DURATION", "MISSING_INT", "MISSING_DURATION",
+		"PASSWORD_RESET_BASE_URL",
+		"SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM",
 	}
 	
 	for _, envVar := range envVars {
