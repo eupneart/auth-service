@@ -48,3 +48,6 @@ coverage.html
 
 # Application-specific files
 notes.txt
+
+# Binary file generated
+auth-service
