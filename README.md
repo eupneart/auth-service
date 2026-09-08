@@ -66,7 +66,7 @@ The recovery endpoints allow 10 requests per IP per minute.
 | `make build`        | Build the Linux binary into `bin/`       |
 | `make run`          | Run the service locally                  |
 | `make test`         | Run all tests with race detection        |
-| `make coverage`     | Generate `coverage.html`                 |
+| `make coverage`     | Print the total and write `coverage.html` |
 | `make lint`         | `go vet` plus a `gofmt` check            |
 | `make fmt`          | Format the code                          |
 | `make migrate-up`   | Apply pending migrations                 |
@@ -95,6 +95,56 @@ go test ./internal/services/   # a single package
 
 The suite runs without external services: repositories are covered with `sqlmock`
 and the tests under `tests/integration` exercise the HTTP layer in memory.
+
+## Coverage
+
+```bash
+make coverage                                    # whole project, prints the total
+                                                 # and writes coverage.html
+go test -cover ./internal/services/              # a single module
+```
+
+For a line-by-line view of one module, generate a profile and inspect it:
+
+```bash
+go test -coverprofile=coverage.out ./internal/services/
+go tool cover -func=coverage.out                 # per-function percentages
+go tool cover -html=coverage.out                 # annotated source in the browser
+```
+
+### Minimum thresholds
+
+The whole project should stay at or above **70%**, with per-module minimums
+weighted by risk:
+
+| Module                                    | Minimum |
+| ----------------------------------------- | ------- |
+| `internal/services`                       | 85%     |
+| `internal/api/middleware`                 | 85%     |
+| `internal/api`, `internal/api/handlers`   | 80%     |
+| `pkg/`                                    | 80%     |
+| `internal/repositories`, `internal/logging` | 70%   |
+| `internal/db`, `internal/mail`            | 50%     |
+
+The percentage is a floor, not a goal: 85% on `internal/services` means little if
+the uncovered part is a token expiry check. Every authentication and
+authorization decision should have an explicit negative-path test.
+
+### Excluded packages
+
+`make coverage` measures the package list from `COVERAGE_PKGS` in the `Makefile`,
+which drops `cmd/` and `utils`:
+
+- `cmd/` holds the service and migration entrypoints — wiring and process
+  startup, exercised by running the service rather than by unit tests.
+- `utils` holds thin JSON and validation helpers that are covered indirectly
+  through the handlers that call them.
+
+Including them charged the total for a large block of statements no test is
+meant to reach, which pulled the aggregate down far enough to hide regressions
+in the code that does matter — dropping them moved the total from 50.1% to
+56.1% without a single new test. `make test` still compiles and runs both
+packages, so they are not skipped by the suite.
 
 ## Docker
 
