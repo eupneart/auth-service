@@ -43,7 +43,7 @@ func AssertStatusCode(t *testing.T, resp *httptest.ResponseRecorder, expectedSta
 func AssertResponseError(t *testing.T, resp *httptest.ResponseRecorder) {
 	var data map[string]interface{}
 	ParseResponse(t, resp.Body.Bytes(), &data)
-	
+
 	hasError, ok := data["error"].(bool)
 	require.True(t, ok, "response should have 'error' field")
 	require.True(t, hasError, "response should indicate an error")
@@ -53,7 +53,7 @@ func AssertResponseError(t *testing.T, resp *httptest.ResponseRecorder) {
 func AssertResponseSuccess(t *testing.T, resp *httptest.ResponseRecorder) {
 	var data map[string]interface{}
 	ParseResponse(t, resp.Body.Bytes(), &data)
-	
+
 	hasError, ok := data["error"].(bool)
 	require.True(t, ok, "response should have 'error' field")
 	require.False(t, hasError, "response should not indicate an error")

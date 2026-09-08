@@ -30,7 +30,7 @@ type TokenService interface {
 	ValidateToken(ctx context.Context, tokenStr string) (*models.Claims, error)
 	RefreshAccessToken(ctx context.Context, refreshToken string) (accessToken string, err error)
 	RevokeToken(ctx context.Context, tokenStr string) error
-  GetTokenMetadata(ctx context.Context, tokenID string) (*models.TokenMetadata, error)
+	GetTokenMetadata(ctx context.Context, tokenID string) (*models.TokenMetadata, error)
 	IsTokenRevoked(ctx context.Context, tokenID string) (bool, error)
 	RevokeAllTokensForUser(ctx context.Context, userID int64) error
 	CleanupExpiredTokens(ctx context.Context) error

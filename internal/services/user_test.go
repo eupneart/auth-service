@@ -10,7 +10,8 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func TestUserService_GetAll(t *testing.T) { mockRepo := new(MockUserRepo)
+func TestUserService_GetAll(t *testing.T) {
+	mockRepo := new(MockUserRepo)
 	service := New(mockRepo)
 
 	ctx := context.Background()
@@ -117,7 +118,7 @@ func TestUserService_Insert(t *testing.T) {
 
 	// Test user insertion
 	newUser := models.User{Email: "new@example.com", Password: "testpassword"}
-	expectedID := int64(1) 
+	expectedID := int64(1)
 
 	mockRepo.On("Insert", mock.Anything, mock.AnythingOfType("models.User")).
 		Return(expectedID, nil).

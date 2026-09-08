@@ -20,9 +20,9 @@ func SetupTestDB(t *testing.T) *TestDB {
 	// 1. Connect to test database
 	// 2. Run migrations
 	// 3. Seed test data
-	
+
 	t.Logf("Setting up test database")
-	
+
 	// For now, return a placeholder
 	return &TestDB{}
 }

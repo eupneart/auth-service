@@ -14,8 +14,8 @@ import (
 )
 
 const (
-    RoleUser  = "user"
-    RoleAdmin = "admin"
+	RoleUser  = "user"
+	RoleAdmin = "admin"
 )
 
 func TestUserRepo_GetAll(t *testing.T) {
@@ -28,7 +28,7 @@ func TestUserRepo_GetAll(t *testing.T) {
 
 	// Mock rows returned by the database
 	rows := sqlmock.NewRows([]string{
-		"id", "email", "first_name", "last_name", "password", 
+		"id", "email", "first_name", "last_name", "password",
 		"role", "is_active", "created_at", "updated_at", "last_login",
 	}).
 		AddRow(1, "test@example.com", "John", "Doe", "password", RoleUser, true, time.Now(), time.Now(), time.Now()).
@@ -63,7 +63,7 @@ func TestUserRepo_GetByID(t *testing.T) {
 
 	// Mock row returned by the database
 	row := sqlmock.NewRows([]string{
-		"id", "email", "first_name", "last_name", "password", 
+		"id", "email", "first_name", "last_name", "password",
 		"role", "is_active", "created_at", "updated_at", "last_login",
 	}).
 		AddRow(1, "test@example.com", "John", "Doe", "password", RoleUser, true, time.Now(), time.Now(), time.Now())
@@ -97,7 +97,7 @@ func TestUserRepo_GetByEmail(t *testing.T) {
 
 	// Mock row returned by the database
 	row := sqlmock.NewRows([]string{
-		"id", "email", "first_name", "last_name", "password", 
+		"id", "email", "first_name", "last_name", "password",
 		"role", "is_active", "created_at", "updated_at", "last_login",
 	}).
 		AddRow(1, "test@example.com", "John", "Doe", "password", RoleUser, true, time.Now(), time.Now(), time.Now())
@@ -182,7 +182,7 @@ func TestUserRepo_Update_PartialFields(t *testing.T) {
 		WithArgs(
 			user.Email,
 			user.FirstName,
-			user.IsActive, // false (zero value)
+			user.IsActive,    // false (zero value)
 			sqlmock.AnyArg(), // updated_at
 			user.ID,
 		).
