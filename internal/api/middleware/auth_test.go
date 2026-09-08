@@ -113,3 +113,26 @@ func TestAuthMiddlewareRejectsRefreshToken(t *testing.T) {
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 	assert.False(t, handlerCalled)
 }
+
+// The context getters are reachable from handlers that were not wrapped in Auth,
+// where the values are absent. They must report that rather than panic, so a
+// missing identity can never be read as user 0 holding valid claims.
+func TestContextGettersOnUnauthenticatedRequest(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/me", nil)
+
+	assert.Nil(t, GetClaimsFromContext(req))
+	assert.Zero(t, GetUserIDFromContext(req))
+
+	token, err := GetTokenFromContext(req)
+	assert.Error(t, err)
+	assert.Empty(t, token)
+}
+
+func TestGetTokenFromContextRejectsEmptyToken(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/me", nil)
+	req = req.WithContext(context.WithValue(req.Context(), tokenContextKey, ""))
+
+	token, err := GetTokenFromContext(req)
+	assert.Error(t, err)
+	assert.Empty(t, token)
+}
