@@ -1038,3 +1038,173 @@ func TestAuthHandler_ResetPasswordMissingFields(t *testing.T) {
 		})
 	}
 }
+
+// ---------------------------------------------------------------- Register
+
+const validRegistration = `{"first_name":"John","last_name":"Doe","email":"user@example.com","password":"NewPassw0rd!"}`
+
+func newRegisterHandler(repo *MockUserRepository, tokenService *MockTokenService) *AuthHandler {
+	return NewAuthHandler(services.New(repo), tokenService, nil)
+}
+
+func registerRequest(handler *AuthHandler, body string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodPost, "/register", bytes.NewBufferString(body))
+	w := httptest.NewRecorder()
+	handler.Register(w, req)
+	return w
+}
+
+func TestAuthHandler_RegisterMalformedJSON(t *testing.T) {
+	handler := newRegisterHandler(new(MockUserRepository), new(MockTokenService))
+
+	w := registerRequest(handler, `{"email":`)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestAuthHandler_RegisterRejectsInvalidInput(t *testing.T) {
+	testCases := []struct {
+		name string
+		body string
+	}{
+		{"missing first name", `{"first_name":"","last_name":"Doe","email":"user@example.com","password":"NewPassw0rd!"}`},
+		{"missing last name", `{"first_name":"John","last_name":"","email":"user@example.com","password":"NewPassw0rd!"}`},
+		{"missing email", `{"first_name":"John","last_name":"Doe","email":"","password":"NewPassw0rd!"}`},
+		{"missing password", `{"first_name":"John","last_name":"Doe","email":"user@example.com","password":""}`},
+		{"invalid email", `{"first_name":"John","last_name":"Doe","email":"not-an-email","password":"NewPassw0rd!"}`},
+		{"weak password", `{"first_name":"John","last_name":"Doe","email":"user@example.com","password":"password"}`},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := new(MockUserRepository)
+			handler := newRegisterHandler(repo, new(MockTokenService))
+
+			w := registerRequest(handler, tc.body)
+
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+			repo.AssertNotCalled(t, "Insert", mock.Anything, mock.Anything)
+		})
+	}
+}
+
+func TestAuthHandler_RegisterRejectsExistingEmail(t *testing.T) {
+	repo := new(MockUserRepository)
+	repo.On("GetByEmail", mock.Anything, "user@example.com").
+		Return(&models.User{ID: 7, Email: "user@example.com"}, nil)
+	handler := newRegisterHandler(repo, new(MockTokenService))
+
+	w := registerRequest(handler, validRegistration)
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	repo.AssertNotCalled(t, "Insert", mock.Anything, mock.Anything)
+}
+
+func TestAuthHandler_RegisterInsertFailure(t *testing.T) {
+	repo := new(MockUserRepository)
+	repo.On("GetByEmail", mock.Anything, "user@example.com").Return(nil, nil)
+	repo.On("Insert", mock.Anything, mock.AnythingOfType("models.User")).
+		Return(int64(0), assert.AnError)
+	handler := newRegisterHandler(repo, new(MockTokenService))
+
+	w := registerRequest(handler, validRegistration)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	// The repository error must not reach the client.
+	assert.Contains(t, w.Body.String(), "failed to create user account")
+	assert.NotContains(t, w.Body.String(), assert.AnError.Error())
+}
+
+func TestAuthHandler_RegisterLookupFailureAfterInsert(t *testing.T) {
+	repo := new(MockUserRepository)
+	repo.On("GetByEmail", mock.Anything, "user@example.com").Return(nil, nil)
+	repo.On("Insert", mock.Anything, mock.AnythingOfType("models.User")).Return(int64(7), nil)
+	repo.On("GetByID", mock.Anything, int64(7)).Return(nil, assert.AnError)
+	handler := newRegisterHandler(repo, new(MockTokenService))
+
+	w := registerRequest(handler, validRegistration)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "failed to complete user registration")
+}
+
+func TestAuthHandler_RegisterMissingUserAfterInsert(t *testing.T) {
+	repo := new(MockUserRepository)
+	repo.On("GetByEmail", mock.Anything, "user@example.com").Return(nil, nil)
+	repo.On("Insert", mock.Anything, mock.AnythingOfType("models.User")).Return(int64(7), nil)
+	repo.On("GetByID", mock.Anything, int64(7)).Return(nil, nil)
+	handler := newRegisterHandler(repo, new(MockTokenService))
+
+	w := registerRequest(handler, validRegistration)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "failed to complete user registration")
+}
+
+// Token generation is auto-login, not part of registration. If it fails the
+// account still exists, so the request succeeds and the client is told to log
+// in rather than being handed a half-built session.
+func TestAuthHandler_RegisterSucceedsWithoutAutoLogin(t *testing.T) {
+	repo := new(MockUserRepository)
+	repo.On("GetByEmail", mock.Anything, "user@example.com").Return(nil, nil)
+	repo.On("Insert", mock.Anything, mock.AnythingOfType("models.User")).Return(int64(7), nil)
+	repo.On("GetByID", mock.Anything, int64(7)).
+		Return(&models.User{ID: 7, Email: "user@example.com"}, nil)
+
+	tokenService := new(MockTokenService)
+	tokenService.On("GenerateTokens", mock.Anything, mock.Anything).
+		Return("", "", assert.AnError)
+
+	w := registerRequest(newRegisterHandler(repo, tokenService), validRegistration)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	assert.Contains(t, w.Body.String(), "Please log in")
+	assert.Contains(t, w.Body.String(), "user_id")
+	assert.NotContains(t, w.Body.String(), "access_token")
+	tokenService.AssertExpectations(t)
+}
+
+func TestAuthHandler_RegisterSuccess(t *testing.T) {
+	repo := new(MockUserRepository)
+	repo.On("GetByEmail", mock.Anything, "user@example.com").Return(nil, nil)
+	repo.On("Insert", mock.Anything, mock.AnythingOfType("models.User")).Return(int64(7), nil)
+	repo.On("GetByID", mock.Anything, int64(7)).
+		Return(&models.User{ID: 7, Email: "user@example.com"}, nil)
+
+	tokenService := new(MockTokenService)
+	tokenService.On("GenerateTokens", mock.Anything, mock.Anything).
+		Return("access-token", "refresh-token", nil)
+
+	w := registerRequest(newRegisterHandler(repo, tokenService), validRegistration)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	assert.Contains(t, w.Body.String(), "access-token")
+	assert.Contains(t, w.Body.String(), "refresh-token")
+	assert.NotContains(t, w.Body.String(), "NewPassw0rd!")
+	repo.AssertExpectations(t)
+	tokenService.AssertExpectations(t)
+}
+
+// The password must never be persisted in the clear.
+func TestAuthHandler_RegisterHashesPasswordBeforeInsert(t *testing.T) {
+	repo := new(MockUserRepository)
+	repo.On("GetByEmail", mock.Anything, "user@example.com").Return(nil, nil)
+	repo.On("Insert", mock.Anything, mock.AnythingOfType("models.User")).
+		Run(func(args mock.Arguments) {
+			stored := args.Get(1).(models.User)
+			assert.NotEqual(t, "NewPassw0rd!", stored.Password)
+			assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(stored.Password), []byte("NewPassw0rd!")))
+		}).
+		Return(int64(7), nil)
+	repo.On("GetByID", mock.Anything, int64(7)).
+		Return(&models.User{ID: 7, Email: "user@example.com"}, nil)
+
+	tokenService := new(MockTokenService)
+	tokenService.On("GenerateTokens", mock.Anything, mock.Anything).
+		Return("access-token", "refresh-token", nil)
+
+	w := registerRequest(newRegisterHandler(repo, tokenService), validRegistration)
+
+	assert.Equal(t, http.StatusCreated, w.Code)
+	repo.AssertExpectations(t)
+}
