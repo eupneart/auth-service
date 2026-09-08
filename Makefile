@@ -1,9 +1,10 @@
 .PHONY: build run test coverage lint fmt migrate-up migrate-down docker-build clean help
 
-# Entrypoints (cmd) and thin helpers (utils) are exercised through the service
-# and its integration tests, not measured directly, so they are excluded from
-# the coverage profile to keep the aggregate meaningful.
-COVERAGE_PKGS = $(shell go list ./... | grep -Ev "/(cmd/|utils$$)")
+# Entrypoints (cmd), the database bootstrap (internal/db) and thin helpers
+# (utils) are exercised through the service and its integration tests, not
+# measured directly, so they are excluded from the coverage profile to keep the
+# aggregate meaningful.
+COVERAGE_PKGS = $(shell go list ./... | grep -Ev "/(cmd/|internal/db$$|utils$$)")
 
 help:
 	@echo "Auth Service Makefile Commands:"

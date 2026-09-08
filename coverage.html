@@ -1,0 +1,3487 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>handlers: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">github.com/eupneart/auth-service/internal/api/handlers/auth.go (64.1%)</option>
+				
+				<option value="file1">github.com/eupneart/auth-service/internal/api/middleware/auth.go (85.7%)</option>
+				
+				<option value="file2">github.com/eupneart/auth-service/internal/api/middleware/correlation.go (100.0%)</option>
+				
+				<option value="file3">github.com/eupneart/auth-service/internal/api/middleware/cors.go (0.0%)</option>
+				
+				<option value="file4">github.com/eupneart/auth-service/internal/api/middleware/logging.go (0.0%)</option>
+				
+				<option value="file5">github.com/eupneart/auth-service/internal/api/middleware/ratelimit.go (0.0%)</option>
+				
+				<option value="file6">github.com/eupneart/auth-service/internal/api/routes.go (100.0%)</option>
+				
+				<option value="file7">github.com/eupneart/auth-service/internal/api/server.go (50.0%)</option>
+				
+				<option value="file8">github.com/eupneart/auth-service/internal/logging/logging.go (93.3%)</option>
+				
+				<option value="file9">github.com/eupneart/auth-service/internal/mail/file.go (0.0%)</option>
+				
+				<option value="file10">github.com/eupneart/auth-service/internal/mail/smtp.go (0.0%)</option>
+				
+				<option value="file11">github.com/eupneart/auth-service/internal/repositories/password_reset.go (88.6%)</option>
+				
+				<option value="file12">github.com/eupneart/auth-service/internal/repositories/token.go (0.0%)</option>
+				
+				<option value="file13">github.com/eupneart/auth-service/internal/repositories/user.go (76.2%)</option>
+				
+				<option value="file14">github.com/eupneart/auth-service/internal/services/password_reset.go (75.4%)</option>
+				
+				<option value="file15">github.com/eupneart/auth-service/internal/services/token.go (60.0%)</option>
+				
+				<option value="file16">github.com/eupneart/auth-service/internal/services/user.go (76.8%)</option>
+				
+				<option value="file17">github.com/eupneart/auth-service/pkg/env/env.go (95.9%)</option>
+				
+				<option value="file18">github.com/eupneart/auth-service/pkg/ratelimit/ratelimit.go (100.0%)</option>
+				
+				<option value="file19">github.com/eupneart/auth-service/tests/integration/helpers.go (0.0%)</option>
+				
+				<option value="file20">github.com/eupneart/auth-service/tests/integration/setup.go (0.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package handlers
+
+import (
+        "context"
+        "errors"
+        "fmt"
+        "log/slog"
+        "net/http"
+        "strings"
+        "time"
+
+        "github.com/eupneart/auth-service/internal/api/middleware"
+        "github.com/eupneart/auth-service/internal/models"
+        "github.com/eupneart/auth-service/internal/services"
+        "github.com/eupneart/auth-service/utils"
+)
+
+// forgotPasswordTimeout bounds the detached work started by ForgotPassword,
+// which outlives the request context.
+const forgotPasswordTimeout = 30 * time.Second
+
+type AuthHandler struct {
+        UserService          *services.UserService
+        TokenService         services.TokenService
+        PasswordResetService *services.PasswordResetService
+}
+
+func NewAuthHandler(userService *services.UserService, tokenService services.TokenService, passwordResetService *services.PasswordResetService) *AuthHandler <span class="cov8" title="1">{
+        return &amp;AuthHandler{
+                UserService:          userService,
+                TokenService:         tokenService,
+                PasswordResetService: passwordResetService,
+        }
+}</span>
+
+func (h *AuthHandler) Authenticate(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        var requestPayload struct {
+                Email    string `json:"email"`
+                Password string `json:"password"`
+        }
+
+        err := utils.ReadJSON(w, r, &amp;requestPayload)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(r.Context(), "failed to read JSON payload for authentication",
+                        "error", err,
+                        "method", "AuthHandler.Authenticate",
+                        "remote_addr", r.RemoteAddr)
+                utils.ErrorJSON(w, err, http.StatusBadRequest)
+                return
+        }</span>
+
+        // Validate input
+        <span class="cov8" title="1">if requestPayload.Email == "" || requestPayload.Password == "" </span><span class="cov8" title="1">{
+                slog.WarnContext(r.Context(), "authentication attempt with missing credentials",
+                        "method", "AuthHandler.Authenticate",
+                        "remote_addr", r.RemoteAddr)
+                utils.ErrorJSON(w, errors.New("email and password are required"), http.StatusBadRequest)
+                return
+        }</span>
+
+        // Validate email format
+        <span class="cov8" title="1">if !utils.IsValidEmail(requestPayload.Email) </span><span class="cov8" title="1">{
+                slog.WarnContext(r.Context(), "authentication attempt with invalid email format",
+                        "email", requestPayload.Email,
+                        "method", "AuthHandler.Authenticate",
+                        "remote_addr", r.RemoteAddr)
+                utils.ErrorJSON(w, errors.New("invalid email format"), http.StatusBadRequest)
+                return
+        }</span>
+
+        // validate the user against the database
+        <span class="cov8" title="1">user, err := h.UserService.GetByEmail(context.WithoutCancel(r.Context()), requestPayload.Email)
+        if err != nil </span><span class="cov8" title="1">{
+                slog.ErrorContext(r.Context(), "failed to get user by email during authentication",
+                        "error", err,
+                        "email", requestPayload.Email,
+                        "method", "AuthHandler.Authenticate",
+                        "remote_addr", r.RemoteAddr)
+                utils.ErrorJSON(w, errors.New("invalid credentials"), http.StatusUnauthorized)
+                return
+        }</span>
+
+        <span class="cov8" title="1">if user == nil </span><span class="cov8" title="1">{
+                slog.ErrorContext(r.Context(), "retrieved user is nil",
+                        "email", requestPayload.Email,
+                        "method", "AuthHandler.Authenticate",
+                        "remote_addr", r.RemoteAddr)
+                utils.ErrorJSON(w, errors.New("invalid credentials"), http.StatusUnauthorized)
+                return
+        }</span>
+
+        // Check if user is active
+        <span class="cov8" title="1">if !user.IsActive </span><span class="cov8" title="1">{
+                slog.WarnContext(r.Context(), "authentication attempt for inactive user",
+                        "email", requestPayload.Email,
+                        "user_id", user.ID,
+                        "method", "AuthHandler.Authenticate",
+                        "remote_addr", r.RemoteAddr)
+                utils.ErrorJSON(w, errors.New("account is deactivated"), http.StatusUnauthorized)
+                return
+        }</span>
+
+        <span class="cov8" title="1">valid, err := h.UserService.PasswordMatches(user, requestPayload.Password)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(r.Context(), "error checking password during authentication",
+                        "error", err,
+                        "email", requestPayload.Email,
+                        "method", "AuthHandler.Authenticate",
+                        "remote_addr", r.RemoteAddr)
+                utils.ErrorJSON(w, errors.New("invalid credentials"), http.StatusUnauthorized)
+                return
+        }</span>
+
+        <span class="cov8" title="1">if !valid </span><span class="cov8" title="1">{
+                slog.WarnContext(r.Context(), "invalid password attempt",
+                        "email", requestPayload.Email,
+                        "method", "AuthHandler.Authenticate",
+                        "remote_addr", r.RemoteAddr)
+                utils.ErrorJSON(w, errors.New("invalid credentials"), http.StatusUnauthorized)
+                return
+        }</span>
+
+        // Generate JWT tokens
+        <span class="cov8" title="1">accessToken, refreshToken, err := h.TokenService.GenerateTokens(context.WithoutCancel(r.Context()), user)
+        if err != nil </span><span class="cov8" title="1">{
+                slog.ErrorContext(r.Context(), "failed to generate tokens during authentication",
+                        "error", err,
+                        "email", user.Email,
+                        "user_id", user.ID,
+                        "method", "AuthHandler.Authenticate",
+                        "remote_addr", r.RemoteAddr)
+                utils.ErrorJSON(w, errors.New("failed to generate authentication tokens"), http.StatusInternalServerError)
+                return
+        }</span>
+
+        // Update user's last login timestamp
+        <span class="cov8" title="1">user.LastLogin = time.Now()
+        if err := h.UserService.Update(context.WithoutCancel(r.Context()), *user); err != nil </span><span class="cov8" title="1">{
+                // Log error but don't fail the authentication (non-critical operation)
+                slog.ErrorContext(r.Context(), "failed to update last login time (non-critical)",
+                        "error", err,
+                        "user_id", user.ID,
+                        "email", user.Email,
+                        "method", "AuthHandler.Authenticate")
+        }</span>
+
+        <span class="cov8" title="1">slog.InfoContext(r.Context(), "user authenticated successfully",
+                "email", user.Email,
+                "user_id", user.ID,
+                "method", "AuthHandler.Authenticate",
+                "remote_addr", r.RemoteAddr)
+
+        // Create token response following OAuth2/JWT standards
+        tokenResponse := models.TokenResponse{
+                AccessToken:      accessToken,
+                RefreshToken:     refreshToken,
+                TokenType:        models.DefaultTokenType,
+                ExpiresIn:        int64(models.DefaultAccessTokenLifetime.Seconds()),
+                RefreshExpiresIn: int64(models.DefaultRefreshTokenLifetime.Seconds()),
+        }
+
+        // Create response payload
+        payload := utils.JsonResponse{
+                Error:   false,
+                Message: fmt.Sprintf("Successfully authenticated user %s", user.Email),
+                Data:    tokenResponse,
+        }
+
+        _ = utils.WriteJSON(w, payload, http.StatusOK)</span>
+}
+
+func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        var requestPayload struct {
+                FirstName string `json:"first_name"`
+                LastName  string `json:"last_name"`
+                Email     string `json:"email"`
+                Password  string `json:"password"`
+        }
+
+        err := utils.ReadJSON(w, r, &amp;requestPayload)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(r.Context(), "failed to read JSON payload for registration",
+                        "error", err,
+                        "method", "AuthHandler.Register",
+                        "remote_addr", r.RemoteAddr)
+                utils.ErrorJSON(w, err, http.StatusBadRequest)
+                return
+        }</span>
+
+        // Validate input
+        <span class="cov0" title="0">err = utils.ValidateRegistrationInput(
+                requestPayload.FirstName,
+                requestPayload.LastName,
+                requestPayload.Email,
+                requestPayload.Password,
+        )
+        if err != nil </span><span class="cov0" title="0">{
+                slog.WarnContext(r.Context(), "registration validation failed",
+                        "error", err.Error(),
+                        "method", "AuthHandler.Register",
+                        "remote_addr", r.RemoteAddr)
+                utils.ErrorJSON(w, err, http.StatusBadRequest)
+                return
+        }</span>
+
+        // Check if user already exists
+        <span class="cov0" title="0">existingUser, err := h.UserService.GetByEmail(context.WithoutCancel(r.Context()), requestPayload.Email)
+        if err == nil &amp;&amp; existingUser != nil </span><span class="cov0" title="0">{
+                slog.WarnContext(r.Context(), "registration attempt with existing email",
+                        "email", requestPayload.Email,
+                        "method", "AuthHandler.Register",
+                        "remote_addr", r.RemoteAddr)
+                utils.ErrorJSON(w, errors.New("user with this email already exists"), http.StatusConflict)
+                return
+        }</span>
+
+        // Create user model
+        <span class="cov0" title="0">usr := models.User{
+                FirstName: requestPayload.FirstName,
+                LastName:  requestPayload.LastName,
+                Email:     requestPayload.Email,
+                Password:  requestPayload.Password,
+                Role:      "user", // Default role
+                IsActive:  true,
+        }
+
+        newUserID, err := h.UserService.Insert(context.WithoutCancel(r.Context()), usr)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(r.Context(), "failed to insert new user during registration",
+                        "error", err,
+                        "email", usr.Email,
+                        "first_name", usr.FirstName,
+                        "last_name", usr.LastName,
+                        "method", "AuthHandler.Register",
+                        "remote_addr", r.RemoteAddr)
+                utils.ErrorJSON(w, errors.New("failed to create user account"), http.StatusInternalServerError)
+                return
+        }</span>
+
+        // Get the created user to generate tokens
+        <span class="cov0" title="0">newUser, err := h.UserService.GetByID(context.WithoutCancel(r.Context()), newUserID)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(r.Context(), "failed to retrieve newly created user",
+                        "error", err,
+                        "user_id", newUserID,
+                        "method", "AuthHandler.Register",
+                        "remote_addr", r.RemoteAddr)
+                utils.ErrorJSON(w, errors.New("failed to complete user registration"), http.StatusInternalServerError)
+                return
+        }</span>
+
+        <span class="cov0" title="0">if newUser == nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(r.Context(), "retrieved user is nil after creation",
+                        "user_id", newUserID,
+                        "method", "AuthHandler.Register",
+                        "remote_addr", r.RemoteAddr)
+                utils.ErrorJSON(w, errors.New("failed to complete user registration"), http.StatusInternalServerError)
+                return
+        }</span>
+
+        // Generate JWT tokens for the new user (auto-login after registration)
+        <span class="cov0" title="0">accessToken, refreshToken, err := h.TokenService.GenerateTokens(context.WithoutCancel(r.Context()), newUser)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(r.Context(), "failed to generate tokens during registration",
+                        "error", err,
+                        "email", newUser.Email,
+                        "user_id", newUser.ID,
+                        "method", "AuthHandler.Register",
+                        "remote_addr", r.RemoteAddr)
+                // Don't fail registration, just log the user in manually later
+                slog.InfoContext(r.Context(), "new user registered successfully (without auto-login)",
+                        "email", usr.Email,
+                        "user_id", newUserID,
+                        "first_name", usr.FirstName,
+                        "last_name", usr.LastName,
+                        "method", "AuthHandler.Register",
+                        "remote_addr", r.RemoteAddr)
+
+                payload := utils.JsonResponse{
+                        Error:   false,
+                        Message: fmt.Sprintf("User registered successfully with email %s. Please log in.", usr.Email),
+                        Data:    map[string]interface{}{"user_id": newUserID},
+                }
+                _ = utils.WriteJSON(w, payload, http.StatusCreated)
+                return
+        }</span>
+
+        <span class="cov0" title="0">slog.InfoContext(r.Context(), "new user registered and authenticated successfully",
+                "email", usr.Email,
+                "user_id", newUserID,
+                "first_name", usr.FirstName,
+                "last_name", usr.LastName,
+                "method", "AuthHandler.Register",
+                "remote_addr", r.RemoteAddr)
+
+        // Create token response for auto-login
+        tokenResponse := models.TokenResponse{
+                AccessToken:      accessToken,
+                RefreshToken:     refreshToken,
+                TokenType:        models.DefaultTokenType,
+                ExpiresIn:        int64(models.DefaultAccessTokenLifetime.Seconds()),
+                RefreshExpiresIn: int64(models.DefaultRefreshTokenLifetime.Seconds()),
+        }
+
+        // Create response payload
+        payload := utils.JsonResponse{
+                Error:   false,
+                Message: fmt.Sprintf("User registered and authenticated successfully with email %s", usr.Email),
+                Data:    tokenResponse,
+        }
+
+        _ = utils.WriteJSON(w, payload, http.StatusCreated)</span>
+}
+
+func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        var requestPayload models.RefreshTokenRequest
+        if err := utils.ReadJSON(w, r, &amp;requestPayload); err != nil </span><span class="cov8" title="1">{
+                utils.ErrorJSON(w, err, http.StatusBadRequest)
+                return
+        }</span>
+        <span class="cov8" title="1">if strings.TrimSpace(requestPayload.RefreshToken) == "" </span><span class="cov8" title="1">{
+                utils.ErrorJSON(w, errors.New("refresh token required"), http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov8" title="1">accessToken, err := h.TokenService.RefreshAccessToken(r.Context(), requestPayload.RefreshToken)
+        if err != nil </span><span class="cov8" title="1">{
+                slog.WarnContext(r.Context(), "token refresh failed", "error", err, "remote_addr", r.RemoteAddr)
+                utils.ErrorJSON(w, errors.New("invalid refresh token"), http.StatusUnauthorized)
+                return
+        }</span>
+
+        <span class="cov8" title="1">payload := utils.JsonResponse{
+                Error:   false,
+                Message: "Token refreshed successfully",
+                Data: map[string]any{
+                        "access_token": accessToken,
+                        "token_type":   models.DefaultTokenType,
+                        "expires_in":   int64(models.DefaultAccessTokenLifetime.Seconds()),
+                },
+        }
+        _ = utils.WriteJSON(w, payload, http.StatusOK)</span>
+}
+
+func (h *AuthHandler) Validate(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        var requestPayload struct {
+                Token string `json:"token"`
+        }
+        if err := utils.ReadJSON(w, r, &amp;requestPayload); err != nil </span><span class="cov0" title="0">{
+                utils.ErrorJSON(w, err, http.StatusBadRequest)
+                return
+        }</span>
+        <span class="cov8" title="1">if strings.TrimSpace(requestPayload.Token) == "" </span><span class="cov0" title="0">{
+                utils.ErrorJSON(w, errors.New("token required"), http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov8" title="1">claims, err := h.TokenService.ValidateToken(r.Context(), requestPayload.Token)
+        if err != nil </span><span class="cov8" title="1">{
+                payload := utils.JsonResponse{
+                        Error:   false,
+                        Message: "Token validation result",
+                        Data: models.TokenValidationResponse{
+                                Valid: false,
+                                Error: err.Error(),
+                        },
+                }
+                _ = utils.WriteJSON(w, payload, http.StatusOK)
+                return
+        }</span>
+
+        <span class="cov8" title="1">validationResponse := models.TokenValidationResponse{
+                Valid:  true,
+                Claims: claims,
+        }
+        if claims.ExpiresAt != nil </span><span class="cov0" title="0">{
+                validationResponse.ExpiresAt = claims.ExpiresAt.Time
+        }</span>
+
+        <span class="cov8" title="1">payload := utils.JsonResponse{
+                Error:   false,
+                Message: "Token is valid",
+                Data:    validationResponse,
+        }
+        _ = utils.WriteJSON(w, payload, http.StatusOK)</span>
+}
+
+func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        token, err := middleware.GetTokenFromContext(r)
+        if err != nil </span><span class="cov0" title="0">{
+                utils.ErrorJSON(w, err, http.StatusUnauthorized)
+                return
+        }</span>
+
+        <span class="cov8" title="1">if err := h.TokenService.RevokeToken(r.Context(), token); err != nil </span><span class="cov8" title="1">{
+                slog.ErrorContext(r.Context(), "failed to revoke token during logout", "error", err)
+                utils.ErrorJSON(w, errors.New("failed to logout"), http.StatusInternalServerError)
+                return
+        }</span>
+
+        <span class="cov8" title="1">payload := utils.JsonResponse{Error: false, Message: "Successfully logged out"}
+        _ = utils.WriteJSON(w, payload, http.StatusOK)</span>
+}
+
+// forgotPasswordMessage is returned for every well-formed request, whether the
+// address is unknown, inactive, or active. Callers must not be able to tell the
+// cases apart.
+const forgotPasswordMessage = "If an account exists for that address, a reset link has been sent."
+
+func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        var requestPayload struct {
+                Email string `json:"email"`
+        }
+
+        if err := utils.ReadJSON(w, r, &amp;requestPayload); err != nil </span><span class="cov0" title="0">{
+                utils.ErrorJSON(w, err, http.StatusBadRequest)
+                return
+        }</span>
+
+        // Format is client-checkable, so rejecting it leaks nothing about accounts.
+        <span class="cov8" title="1">if !utils.IsValidEmail(requestPayload.Email) </span><span class="cov8" title="1">{
+                utils.ErrorJSON(w, errors.New("invalid email format"), http.StatusBadRequest)
+                return
+        }</span>
+
+        // Responding before doing the work keeps the response time independent of
+        // whether the account exists; otherwise the lookup, token insert and mail
+        // send would make existing addresses measurably slower. The request context
+        // is not reused as-is because it is cancelled as soon as this handler
+        // returns; WithoutCancel drops that cancellation while keeping the
+        // correlation id, so this detached work still logs under the request's id.
+        <span class="cov8" title="1">go func(ctx context.Context, email string) </span><span class="cov8" title="1">{
+                // No HTTP middleware can recover a panic raised off the request
+                // goroutine, so an unguarded one here would take down the process.
+                defer func() </span><span class="cov8" title="1">{
+                        if recovered := recover(); recovered != nil </span><span class="cov0" title="0">{
+                                slog.ErrorContext(ctx, "password reset request panicked",
+                                        "panic", recovered,
+                                        "method", "AuthHandler.ForgotPassword")
+                        }</span>
+                }()
+
+                <span class="cov8" title="1">ctx, cancel := context.WithTimeout(ctx, forgotPasswordTimeout)
+                defer cancel()
+
+                if err := h.PasswordResetService.RequestReset(ctx, email); err != nil </span><span class="cov0" title="0">{
+                        slog.ErrorContext(ctx, "failed to process password reset request",
+                                "error", err,
+                                "method", "AuthHandler.ForgotPassword")
+                }</span>
+        }(context.WithoutCancel(r.Context()), requestPayload.Email)
+
+        <span class="cov8" title="1">payload := utils.JsonResponse{Error: false, Message: forgotPasswordMessage}
+        _ = utils.WriteJSON(w, payload, http.StatusAccepted)</span>
+}
+
+func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        var requestPayload struct {
+                Token       string `json:"token"`
+                NewPassword string `json:"new_password"`
+        }
+
+        if err := utils.ReadJSON(w, r, &amp;requestPayload); err != nil </span><span class="cov0" title="0">{
+                utils.ErrorJSON(w, err, http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov8" title="1">if requestPayload.Token == "" || requestPayload.NewPassword == "" </span><span class="cov8" title="1">{
+                utils.ErrorJSON(w, errors.New("token and new_password are required"), http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov8" title="1">err := h.PasswordResetService.ResetWithToken(r.Context(), requestPayload.Token, requestPayload.NewPassword)
+
+        switch </span>{
+        case err == nil:<span class="cov8" title="1"></span>
+        case errors.Is(err, services.ErrWeakPassword):<span class="cov8" title="1">
+                utils.ErrorJSON(w, err, http.StatusBadRequest)
+                return</span>
+        case errors.Is(err, services.ErrInvalidResetToken):<span class="cov8" title="1">
+                // Missing, expired and already-used tokens share this response so it
+                // cannot be used to probe which links exist.
+                slog.WarnContext(r.Context(), "password reset attempted with an unusable token",
+                        "method", "AuthHandler.ResetPassword",
+                        "remote_addr", r.RemoteAddr)
+                utils.ErrorJSON(w, errors.New("invalid or expired reset token"), http.StatusBadRequest)
+                return</span>
+        default:<span class="cov0" title="0">
+                slog.ErrorContext(r.Context(), "failed to reset password",
+                        "error", err,
+                        "method", "AuthHandler.ResetPassword")
+                utils.ErrorJSON(w, errors.New("failed to reset password"), http.StatusInternalServerError)
+                return</span>
+        }
+
+        // No tokens are issued here: the user must sign in with the new password.
+        <span class="cov8" title="1">payload := utils.JsonResponse{
+                Error:   false,
+                Message: "Password reset successfully. Please sign in with your new password.",
+        }
+        _ = utils.WriteJSON(w, payload, http.StatusOK)</span>
+}
+
+func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        // The user is taken from verified claims; a user ID in the body would let a
+        // caller change someone else's password.
+        claims := middleware.GetClaimsFromContext(r)
+        if claims == nil </span><span class="cov0" title="0">{
+                utils.ErrorJSON(w, errors.New("claims not found in context"), http.StatusUnauthorized)
+                return
+        }</span>
+
+        <span class="cov8" title="1">var requestPayload struct {
+                CurrentPassword string `json:"current_password"`
+                NewPassword     string `json:"new_password"`
+        }
+
+        if err := utils.ReadJSON(w, r, &amp;requestPayload); err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(r.Context(), "failed to read JSON payload for password change",
+                        "error", err,
+                        "user_id", claims.UserID,
+                        "method", "AuthHandler.ChangePassword",
+                        "remote_addr", r.RemoteAddr)
+                utils.ErrorJSON(w, err, http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov8" title="1">if requestPayload.CurrentPassword == "" || requestPayload.NewPassword == "" </span><span class="cov8" title="1">{
+                utils.ErrorJSON(w, errors.New("current_password and new_password are required"), http.StatusBadRequest)
+                return
+        }</span>
+
+        <span class="cov8" title="1">err := h.PasswordResetService.ChangePassword(r.Context(), claims.UserID,
+                requestPayload.CurrentPassword, requestPayload.NewPassword)
+
+        switch </span>{
+        case err == nil:<span class="cov8" title="1"></span>
+        case errors.Is(err, services.ErrWeakPassword):<span class="cov8" title="1">
+                utils.ErrorJSON(w, err, http.StatusBadRequest)
+                return</span>
+        case errors.Is(err, services.ErrInvalidCredentials):<span class="cov8" title="1">
+                slog.WarnContext(r.Context(), "password change attempt with incorrect current password",
+                        "user_id", claims.UserID,
+                        "method", "AuthHandler.ChangePassword",
+                        "remote_addr", r.RemoteAddr)
+                utils.ErrorJSON(w, errors.New("current password is incorrect"), http.StatusUnauthorized)
+                return</span>
+        default:<span class="cov0" title="0">
+                slog.ErrorContext(r.Context(), "failed to change password",
+                        "error", err,
+                        "user_id", claims.UserID,
+                        "method", "AuthHandler.ChangePassword")
+                utils.ErrorJSON(w, errors.New("failed to change password"), http.StatusInternalServerError)
+                return</span>
+        }
+
+        <span class="cov8" title="1">slog.InfoContext(r.Context(), "password changed",
+                "user_id", claims.UserID,
+                "method", "AuthHandler.ChangePassword",
+                "remote_addr", r.RemoteAddr)
+
+        payload := utils.JsonResponse{
+                Error:   false,
+                Message: "Password changed successfully. All sessions have been signed out.",
+        }
+        _ = utils.WriteJSON(w, payload, http.StatusOK)</span>
+}
+
+func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        claims := middleware.GetClaimsFromContext(r)
+        if claims == nil </span><span class="cov0" title="0">{
+                utils.ErrorJSON(w, errors.New("claims not found in context"), http.StatusUnauthorized)
+                return
+        }</span>
+
+        <span class="cov8" title="1">user, err := h.UserService.GetByID(r.Context(), claims.UserID)
+        if err != nil || user == nil </span><span class="cov8" title="1">{
+                utils.ErrorJSON(w, errors.New("user not found"), http.StatusNotFound)
+                return
+        }</span>
+        <span class="cov8" title="1">if !user.IsActive </span><span class="cov8" title="1">{
+                utils.ErrorJSON(w, errors.New("user account is inactive"), http.StatusUnauthorized)
+                return
+        }</span>
+
+        <span class="cov8" title="1">payload := utils.JsonResponse{
+                Error:   false,
+                Message: "User retrieved successfully",
+                Data:    user,
+        }
+        _ = utils.WriteJSON(w, payload, http.StatusOK)</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package middleware
+
+import (
+        "context"
+        "errors"
+        "log/slog"
+        "net/http"
+        "strings"
+
+        "github.com/eupneart/auth-service/internal/models"
+        "github.com/eupneart/auth-service/internal/services"
+)
+
+type contextKey string
+
+const (
+        claimsContextKey contextKey = "claims"
+        userIDContextKey contextKey = "user_id"
+        tokenContextKey  contextKey = "token"
+)
+
+// Auth validates a Bearer token and adds its claims to the request context.
+func Auth(tokenService services.TokenService) func(http.Handler) http.Handler <span class="cov8" title="1">{
+        return func(next http.Handler) http.Handler </span><span class="cov8" title="1">{
+                return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) </span><span class="cov8" title="1">{
+                        authHeader := r.Header.Get("Authorization")
+                        if strings.TrimSpace(authHeader) == "" </span><span class="cov8" title="1">{
+                                slog.WarnContext(r.Context(), "missing authorization header", "remote_addr", r.RemoteAddr)
+                                http.Error(w, "missing authorization header", http.StatusUnauthorized)
+                                return
+                        }</span>
+                        <span class="cov8" title="1">parts := strings.Fields(authHeader)
+                        if len(parts) != 2 || parts[0] != models.DefaultTokenType || parts[1] == "" </span><span class="cov8" title="1">{
+                                slog.WarnContext(r.Context(), "invalid authorization header", "remote_addr", r.RemoteAddr)
+                                http.Error(w, "invalid authorization format", http.StatusUnauthorized)
+                                return
+                        }</span>
+                        <span class="cov8" title="1">if tokenService == nil </span><span class="cov0" title="0">{
+                                slog.ErrorContext(r.Context(), "token service is not configured")
+                                http.Error(w, "authentication unavailable", http.StatusInternalServerError)
+                                return
+                        }</span>
+
+                        <span class="cov8" title="1">token := parts[1]
+                        claims, err := tokenService.ValidateToken(r.Context(), token)
+                        if err != nil || claims == nil </span><span class="cov8" title="1">{
+                                slog.WarnContext(r.Context(), "token validation failed", "error", err, "remote_addr", r.RemoteAddr)
+                                http.Error(w, "invalid token", http.StatusUnauthorized)
+                                return
+                        }</span>
+                        <span class="cov8" title="1">if claims.TokenType != models.TokenTypeAccess </span><span class="cov8" title="1">{
+                                slog.WarnContext(r.Context(), "non-access token used for protected route",
+                                        "token_type", claims.TokenType,
+                                        "user_id", claims.UserID,
+                                        "remote_addr", r.RemoteAddr)
+                                http.Error(w, "invalid token type", http.StatusUnauthorized)
+                                return
+                        }</span>
+
+                        <span class="cov8" title="1">ctx := context.WithValue(r.Context(), claimsContextKey, claims)
+                        ctx = context.WithValue(ctx, userIDContextKey, claims.UserID)
+                        ctx = context.WithValue(ctx, tokenContextKey, token)
+                        next.ServeHTTP(w, r.WithContext(ctx))</span>
+                })
+        }
+}
+
+func GetClaimsFromContext(r *http.Request) *models.Claims <span class="cov8" title="1">{
+        claims, ok := r.Context().Value(claimsContextKey).(*models.Claims)
+        if !ok </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+        <span class="cov8" title="1">return claims</span>
+}
+
+func GetUserIDFromContext(r *http.Request) int64 <span class="cov8" title="1">{
+        userID, ok := r.Context().Value(userIDContextKey).(int64)
+        if !ok </span><span class="cov0" title="0">{
+                return 0
+        }</span>
+        <span class="cov8" title="1">return userID</span>
+}
+
+func GetTokenFromContext(r *http.Request) (string, error) <span class="cov8" title="1">{
+        token, ok := r.Context().Value(tokenContextKey).(string)
+        if !ok || token == "" </span><span class="cov0" title="0">{
+                return "", errors.New("token not found in context")
+        }</span>
+        <span class="cov8" title="1">return token, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package middleware
+
+import (
+        "net/http"
+
+        "github.com/eupneart/auth-service/internal/logging"
+        "github.com/google/uuid"
+)
+
+// CorrelationIDHeader carries the correlation id on both the request and the
+// response.
+const CorrelationIDHeader = "X-Request-Id"
+
+// CorrelationID puts a correlation id into the request context so that every log
+// record emitted while serving the request carries it.
+//
+// An id supplied by the caller is preferred, so these logs join with the
+// caller's own. A missing or malformed one is replaced by a generated id rather
+// than dropped, so that no request is left untraceable and every record has the
+// same shape.
+func CorrelationID(next http.Handler) http.Handler <span class="cov8" title="1">{
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) </span><span class="cov8" title="1">{
+                id := logging.Sanitize(r.Header.Get(CorrelationIDHeader))
+                if id == "" </span><span class="cov8" title="1">{
+                        id = uuid.NewString()
+                }</span>
+
+                <span class="cov8" title="1">w.Header().Set(CorrelationIDHeader, id)
+                next.ServeHTTP(w, r.WithContext(logging.WithCorrelationID(r.Context(), id)))</span>
+        })
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package middleware
+
+import (
+        "net/http"
+        "os"
+        "strings"
+)
+
+// CORS configures Cross-Origin Resource Sharing
+func CORS(next http.Handler) http.Handler <span class="cov0" title="0">{
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                // Get allowed origins from environment or use defaults
+                allowedOrigins := getAllowedOrigins()
+
+                origin := r.Header.Get("Origin")
+                if isOriginAllowed(origin, allowedOrigins) </span><span class="cov0" title="0">{
+                        w.Header().Set("Access-Control-Allow-Origin", origin)
+                }</span>
+
+                <span class="cov0" title="0">w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
+                w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+                w.Header().Set("Access-Control-Allow-Credentials", "true")
+                w.Header().Set("Access-Control-Max-Age", "86400")
+
+                // Handle preflight requests
+                if r.Method == http.MethodOptions </span><span class="cov0" title="0">{
+                        w.WriteHeader(http.StatusOK)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">next.ServeHTTP(w, r)</span>
+        })
+}
+
+// getAllowedOrigins returns the list of allowed origins from environment
+func getAllowedOrigins() []string <span class="cov0" title="0">{
+        originsStr := os.Getenv("CORS_ALLOWED_ORIGINS")
+        if originsStr == "" </span><span class="cov0" title="0">{
+                // Default to localhost origins for development
+                return []string{
+                        "http://localhost:3000",
+                        "http://localhost:4200",
+                        "http://localhost:8080",
+                }
+        }</span>
+        <span class="cov0" title="0">return strings.Split(originsStr, ",")</span>
+}
+
+// isOriginAllowed checks if the given origin is in the allowed list
+func isOriginAllowed(origin string, allowedOrigins []string) bool <span class="cov0" title="0">{
+        if origin == "" </span><span class="cov0" title="0">{
+                return false
+        }</span>
+
+        <span class="cov0" title="0">for _, allowed := range allowedOrigins </span><span class="cov0" title="0">{
+                if strings.TrimSpace(allowed) == origin </span><span class="cov0" title="0">{
+                        return true
+                }</span>
+        }
+        <span class="cov0" title="0">return false</span>
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package middleware
+
+import (
+        "log/slog"
+        "net/http"
+        "time"
+)
+
+// ResponseWriter wraps http.ResponseWriter to capture status code and response size
+type responseWriter struct {
+        http.ResponseWriter
+        statusCode int
+        size       int
+}
+
+func (rw *responseWriter) WriteHeader(statusCode int) <span class="cov0" title="0">{
+        rw.statusCode = statusCode
+        rw.ResponseWriter.WriteHeader(statusCode)
+}</span>
+
+func (rw *responseWriter) Write(b []byte) (int, error) <span class="cov0" title="0">{
+        size, err := rw.ResponseWriter.Write(b)
+        rw.size += size
+        return size, err
+}</span>
+
+// Logging middleware logs HTTP requests and responses
+func Logging(next http.Handler) http.Handler <span class="cov0" title="0">{
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                startTime := time.Now()
+
+                // Wrap the response writer to capture status code
+                rw := &amp;responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
+
+                // Log request
+                slog.DebugContext(r.Context(), "incoming request",
+                        "method", r.Method,
+                        "path", r.RequestURI,
+                        "remote_addr", r.RemoteAddr,
+                        "user_agent", r.UserAgent())
+
+                // Call the next handler
+                next.ServeHTTP(rw, r)
+
+                // Calculate duration
+                duration := time.Since(startTime)
+
+                // Log response
+                level := slog.LevelInfo
+                if rw.statusCode &gt;= 400 &amp;&amp; rw.statusCode &lt; 500 </span><span class="cov0" title="0">{
+                        level = slog.LevelWarn
+                }</span> else<span class="cov0" title="0"> if rw.statusCode &gt;= 500 </span><span class="cov0" title="0">{
+                        level = slog.LevelError
+                }</span>
+
+                <span class="cov0" title="0">slog.Log(r.Context(), level, "request completed",
+                        "method", r.Method,
+                        "path", r.RequestURI,
+                        "status", rw.statusCode,
+                        "duration_ms", duration.Milliseconds(),
+                        "response_size", rw.size,
+                        "remote_addr", r.RemoteAddr)</span>
+        })
+}
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package middleware
+
+import (
+        "log/slog"
+        "net"
+        "net/http"
+
+        "github.com/eupneart/auth-service/pkg/ratelimit"
+)
+
+// RateLimit rejects requests from a source address that has exceeded the
+// limiter's allowance.
+//
+// Clients are keyed by RemoteAddr rather than X-Forwarded-For: that header is
+// set by the caller and there is no trusted-proxy configuration here, so
+// honouring it would let an attacker reset their own counter at will. Behind a
+// reverse proxy this therefore limits per proxy, and the proxy should carry its
+// own per-client limit.
+func RateLimit(limiter *ratelimit.Limiter) func(http.Handler) http.Handler <span class="cov0" title="0">{
+        return func(next http.Handler) http.Handler </span><span class="cov0" title="0">{
+                return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) </span><span class="cov0" title="0">{
+                        if !limiter.Allow(clientKey(r)) </span><span class="cov0" title="0">{
+                                slog.WarnContext(r.Context(), "rate limit exceeded",
+                                        "path", r.URL.Path,
+                                        "remote_addr", r.RemoteAddr)
+                                http.Error(w, "too many requests", http.StatusTooManyRequests)
+                                return
+                        }</span>
+
+                        <span class="cov0" title="0">next.ServeHTTP(w, r)</span>
+                })
+        }
+}
+
+func clientKey(r *http.Request) string <span class="cov0" title="0">{
+        host, _, err := net.SplitHostPort(r.RemoteAddr)
+        if err != nil </span><span class="cov0" title="0">{
+                return r.RemoteAddr
+        }</span>
+        <span class="cov0" title="0">return host</span>
+}
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">package api
+
+import (
+        "net/http"
+
+        "github.com/eupneart/auth-service/internal/api/handlers"
+        authmiddleware "github.com/eupneart/auth-service/internal/api/middleware"
+        "github.com/go-chi/chi/v5"
+        chimiddleware "github.com/go-chi/chi/v5/middleware"
+        "github.com/go-chi/cors"
+)
+
+func (s *Server) Routes() http.Handler <span class="cov8" title="1">{
+        mux := chi.NewRouter()
+
+        // First in the chain so nothing downstream logs without a correlation id.
+        mux.Use(authmiddleware.CorrelationID)
+
+        // specify who is allowed to connect (cors policy)
+        mux.Use(cors.Handler(cors.Options{
+                AllowedOrigins:   []string{"https://eupneart.com", "http://localhost:4200", "http://localhost:8080"},
+                AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+                AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", authmiddleware.CorrelationIDHeader},
+                ExposedHeaders:   []string{"Link", authmiddleware.CorrelationIDHeader},
+                AllowCredentials: true,
+                MaxAge:           300,
+        }))
+
+        mux.Use(chimiddleware.Heartbeat("/ping"))
+        mux.Use(authmiddleware.Logging)
+
+        // create auth handler with both UserService and TokenService
+        authHandler := handlers.NewAuthHandler(s.UserService, s.TokenService, s.PasswordResetService)
+
+        mux.Post("/authenticate", authHandler.Authenticate)
+        mux.Post("/register", authHandler.Register)
+        mux.Post("/refresh", authHandler.Refresh)
+        mux.Post("/validate", authHandler.Validate)
+
+        // Public recovery routes carry their own rate limit; the rest of the public
+        // surface is unchanged.
+        recoveryRoutes := mux.With(authmiddleware.RateLimit(s.passwordLimiter))
+        recoveryRoutes.Post("/password/forgot", authHandler.ForgotPassword)
+        recoveryRoutes.Post("/password/reset", authHandler.ResetPassword)
+
+        authMiddleware := authmiddleware.Auth(s.TokenService)
+        protectedRoutes := mux.With(authMiddleware)
+        protectedRoutes.Post("/logout", authHandler.Logout)
+        protectedRoutes.Get("/me", authHandler.GetMe)
+        protectedRoutes.Post("/password/change", authHandler.ChangePassword)
+
+        return mux
+}</span>
+</pre>
+		
+		<pre class="file" id="file7" style="display: none">package api
+
+import (
+        "net/http"
+        "time"
+
+        "github.com/eupneart/auth-service/internal/services"
+        "github.com/eupneart/auth-service/pkg/env"
+        "github.com/eupneart/auth-service/pkg/ratelimit"
+)
+
+// Password recovery is unauthenticated, so it is limited per source address to
+// blunt enumeration sweeps and mail flooding.
+const (
+        passwordRequestsPerIP = 10
+        passwordRequestWindow = time.Minute
+)
+
+type Server struct {
+        Settings             *env.EnvConfig
+        UserService          *services.UserService
+        TokenService         services.TokenService
+        PasswordResetService *services.PasswordResetService
+
+        // Held on the server, not built in Routes, so the counters survive for the
+        // process rather than resetting whenever routes are constructed.
+        passwordLimiter *ratelimit.Limiter
+}
+
+func NewServer(settings *env.EnvConfig, userService *services.UserService, tokenService services.TokenService, passwordResetService *services.PasswordResetService) *Server <span class="cov8" title="1">{
+        return &amp;Server{
+                Settings:             settings,
+                UserService:          userService,
+                TokenService:         tokenService,
+                PasswordResetService: passwordResetService,
+                passwordLimiter:      ratelimit.New(passwordRequestsPerIP, passwordRequestWindow),
+        }
+}</span>
+
+func (s *Server) ServeHttp(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        s.Routes().ServeHTTP(w, r)
+}</span>
+</pre>
+		
+		<pre class="file" id="file8" style="display: none">// Package logging carries a correlation id through a request's context so that
+// every log record emitted while serving that request can be tied back to it.
+package logging
+
+import (
+        "context"
+        "log/slog"
+)
+
+// CorrelationIDAttr is the log attribute key under which the correlation id is
+// recorded.
+const CorrelationIDAttr = "cid"
+
+// maxCorrelationIDLen bounds a caller-supplied correlation id.
+const maxCorrelationIDLen = 128
+
+type contextKey struct{}
+
+// WithCorrelationID returns a copy of ctx carrying id.
+func WithCorrelationID(ctx context.Context, id string) context.Context <span class="cov8" title="1">{
+        return context.WithValue(ctx, contextKey{}, id)
+}</span>
+
+// CorrelationIDFromContext returns the correlation id carried by ctx, or an
+// empty string when there is none.
+func CorrelationIDFromContext(ctx context.Context) string <span class="cov8" title="1">{
+        id, _ := ctx.Value(contextKey{}).(string)
+        return id
+}</span>
+
+// Sanitize returns id unchanged when it is safe to record, and an empty string
+// otherwise.
+//
+// Correlation ids originate from the caller and are written straight to the
+// logs, so only a bounded set of printable characters is accepted: an over-long
+// or control-character-carrying id would let a caller bloat the logs or forge
+// entries in consumers that do not parse the JSON.
+func Sanitize(id string) string <span class="cov8" title="1">{
+        if id == "" || len(id) &gt; maxCorrelationIDLen </span><span class="cov8" title="1">{
+                return ""
+        }</span>
+        <span class="cov8" title="1">for i := 0; i &lt; len(id); i++ </span><span class="cov8" title="1">{
+                switch c := id[i]; </span>{
+                case c &gt;= 'a' &amp;&amp; c &lt;= 'z', c &gt;= 'A' &amp;&amp; c &lt;= 'Z', c &gt;= '0' &amp;&amp; c &lt;= '9':<span class="cov8" title="1"></span>
+                case c == '-', c == '_', c == '.':<span class="cov8" title="1"></span>
+                default:<span class="cov8" title="1">
+                        return ""</span>
+                }
+        }
+        <span class="cov8" title="1">return id</span>
+}
+
+// NewHandler wraps next so that every record logged with a context carrying a
+// correlation id gains a CorrelationIDAttr attribute. Records logged without one
+// pass through unchanged.
+//
+// The attribute is added at the record's current nesting, so a logger derived
+// through WithGroup records it inside that group rather than at the top level.
+func NewHandler(next slog.Handler) slog.Handler <span class="cov8" title="1">{
+        return correlationHandler{Handler: next}
+}</span>
+
+type correlationHandler struct {
+        slog.Handler
+}
+
+func (h correlationHandler) Handle(ctx context.Context, record slog.Record) error <span class="cov8" title="1">{
+        if id := CorrelationIDFromContext(ctx); id != "" </span><span class="cov8" title="1">{
+                record.AddAttrs(slog.String(CorrelationIDAttr, id))
+        }</span>
+        <span class="cov8" title="1">return h.Handler.Handle(ctx, record)</span>
+}
+
+// WithAttrs and WithGroup re-wrap the derived handler; without them a logger
+// built through slog.Logger.With would silently lose the correlation id.
+
+func (h correlationHandler) WithAttrs(attrs []slog.Attr) slog.Handler <span class="cov8" title="1">{
+        return correlationHandler{Handler: h.Handler.WithAttrs(attrs)}
+}</span>
+
+func (h correlationHandler) WithGroup(name string) slog.Handler <span class="cov0" title="0">{
+        return correlationHandler{Handler: h.Handler.WithGroup(name)}
+}</span>
+</pre>
+		
+		<pre class="file" id="file9" style="display: none">package mail
+
+import (
+        "context"
+        "fmt"
+        "os"
+        "sync"
+        "time"
+)
+
+// FileMailer appends reset links to a local file instead of sending email, so
+// the recovery flow can be exercised in development. It must never be used in
+// production: the file holds live credentials in plain text.
+type FileMailer struct {
+        path string
+        mu   sync.Mutex
+}
+
+func NewFileMailer(path string) *FileMailer <span class="cov0" title="0">{
+        return &amp;FileMailer{path: path}
+}</span>
+
+func (m *FileMailer) SendPasswordReset(ctx context.Context, recipient, resetURL string) error <span class="cov0" title="0">{
+        m.mu.Lock()
+        defer m.mu.Unlock()
+
+        f, err := os.OpenFile(m.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("opening dev mailbox: %w", err)
+        }</span>
+        <span class="cov0" title="0">defer f.Close()
+
+        if _, err := fmt.Fprintf(f, "%s\t%s\t%s\n", time.Now().Format(time.RFC3339), recipient, resetURL); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("writing dev mailbox: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file10" style="display: none">package mail
+
+import (
+        "context"
+        "fmt"
+        "net"
+        "net/smtp"
+)
+
+type SMTPConfig struct {
+        Host     string
+        Port     string
+        Username string
+        Password string
+        From     string
+}
+
+type SMTPMailer struct {
+        cfg SMTPConfig
+}
+
+func NewSMTPMailer(cfg SMTPConfig) *SMTPMailer <span class="cov0" title="0">{
+        return &amp;SMTPMailer{cfg: cfg}
+}</span>
+
+// SendPasswordReset delivers the reset link over SMTP. smtp.PlainAuth refuses to
+// hand over credentials on a connection the server has not secured with
+// STARTTLS, so a misconfigured host fails rather than leaking the password.
+//
+// ctx is accepted for interface conformity; net/smtp has no context-aware API.
+func (m *SMTPMailer) SendPasswordReset(ctx context.Context, recipient, resetURL string) error <span class="cov0" title="0">{
+        addr := net.JoinHostPort(m.cfg.Host, m.cfg.Port)
+        auth := smtp.PlainAuth("", m.cfg.Username, m.cfg.Password, m.cfg.Host)
+
+        msg := fmt.Appendf(nil,
+                "From: %s\r\nTo: %s\r\nSubject: Reset your password\r\n"+
+                        "Content-Type: text/plain; charset=utf-8\r\n\r\n"+
+                        "Use the link below to choose a new password. It expires shortly and can be used once.\r\n\r\n"+
+                        "%s\r\n\r\nIf you did not request this, no action is needed.\r\n",
+                m.cfg.From, recipient, resetURL)
+
+        if err := smtp.SendMail(addr, auth, m.cfg.From, []string{recipient}, msg); err != nil </span><span class="cov0" title="0">{
+                // The error is not wrapped with the recipient or URL: both are sensitive
+                // and callers log this.
+                return fmt.Errorf("sending password reset email: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file11" style="display: none">package repositories
+
+import (
+        "context"
+        "database/sql"
+        "errors"
+        "fmt"
+        "log/slog"
+        "time"
+
+        "github.com/eupneart/auth-service/internal/models"
+)
+
+// ErrResetTokenNotFound is returned when a password-reset token is missing,
+// expired, or already consumed. Callers must treat all three cases identically
+// so responses never reveal which one occurred.
+var ErrResetTokenNotFound = errors.New("password reset token not found")
+
+const passwordResetTokenColumns = `
+  id, user_id, token_hash, created_at, expires_at, consumed_at
+`
+
+type PasswordResetTokenRepo struct {
+        DB *sql.DB
+}
+
+func NewPasswordResetTokenRepo(db *sql.DB) PasswordResetTokenStore <span class="cov8" title="1">{
+        return &amp;PasswordResetTokenRepo{DB: db}
+}</span>
+
+func (r *PasswordResetTokenRepo) CreatePasswordResetToken(ctx context.Context, token *models.PasswordResetToken) error <span class="cov8" title="1">{
+        stmt := `INSERT INTO password_reset_tokens (user_id, token_hash, created_at, expires_at)
+             VALUES ($1, $2, $3, $4) RETURNING id, created_at`
+
+        err := r.DB.QueryRowContext(ctx, stmt,
+                token.UserID,
+                token.TokenHash,
+                time.Now(),
+                token.ExpiresAt,
+        ).Scan(&amp;token.ID, &amp;token.CreatedAt)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to create password reset token",
+                        "error", err,
+                        "user_id", token.UserID,
+                        "method", "PasswordResetTokenRepo.CreatePasswordResetToken")
+                return fmt.Errorf("creating password reset token: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">slog.DebugContext(ctx, "created password reset token",
+                "user_id", token.UserID,
+                "token_id", token.ID)
+
+        return nil</span>
+}
+
+func (r *PasswordResetTokenRepo) ConsumePasswordResetToken(ctx context.Context, tokenHash string) (*models.PasswordResetToken, error) <span class="cov8" title="1">{
+        // Single UPDATE ... RETURNING so the check-and-consume is atomic and a token
+        // can never be redeemed twice, even under concurrent requests.
+        stmt := fmt.Sprintf(`UPDATE password_reset_tokens
+             SET consumed_at = $1
+             WHERE token_hash = $2 AND consumed_at IS NULL AND expires_at &gt; $1
+             RETURNING %s`, passwordResetTokenColumns)
+
+        now := time.Now()
+        token, err := scanPasswordResetToken(r.DB.QueryRowContext(ctx, stmt, now, tokenHash))
+        if err != nil </span><span class="cov8" title="1">{
+                if err == sql.ErrNoRows </span><span class="cov8" title="1">{
+                        slog.WarnContext(ctx, "password reset token invalid, expired, or already used",
+                                "method", "PasswordResetTokenRepo.ConsumePasswordResetToken")
+                        return nil, ErrResetTokenNotFound
+                }</span>
+                <span class="cov8" title="1">slog.ErrorContext(ctx, "failed to consume password reset token",
+                        "error", err,
+                        "method", "PasswordResetTokenRepo.ConsumePasswordResetToken")
+                return nil, fmt.Errorf("consuming password reset token: %w", err)</span>
+        }
+
+        <span class="cov8" title="1">slog.InfoContext(ctx, "consumed password reset token",
+                "user_id", token.UserID,
+                "token_id", token.ID)
+
+        return token, nil</span>
+}
+
+func (r *PasswordResetTokenRepo) InvalidatePasswordResetTokensForUser(ctx context.Context, userID int64) error <span class="cov8" title="1">{
+        stmt := `UPDATE password_reset_tokens SET consumed_at = $1
+             WHERE user_id = $2 AND consumed_at IS NULL`
+
+        result, err := r.DB.ExecContext(ctx, stmt, time.Now(), userID)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to invalidate password reset tokens for user",
+                        "error", err,
+                        "user_id", userID,
+                        "method", "PasswordResetTokenRepo.InvalidatePasswordResetTokensForUser")
+                return fmt.Errorf("invalidating password reset tokens for user: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">rowsAffected, _ := result.RowsAffected()
+        slog.InfoContext(ctx, "invalidated password reset tokens for user",
+                "user_id", userID,
+                "tokens_invalidated", rowsAffected)
+
+        return nil</span>
+}
+
+// ========================= Helper functions ============================
+
+func scanPasswordResetToken(row *sql.Row) (*models.PasswordResetToken, error) <span class="cov8" title="1">{
+        var token models.PasswordResetToken
+        var consumedAt sql.NullTime
+
+        err := row.Scan(
+                &amp;token.ID,
+                &amp;token.UserID,
+                &amp;token.TokenHash,
+                &amp;token.CreatedAt,
+                &amp;token.ExpiresAt,
+                &amp;consumedAt,
+        )
+        if err != nil </span><span class="cov8" title="1">{
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">if consumedAt.Valid </span><span class="cov8" title="1">{
+                token.ConsumedAt = &amp;consumedAt.Time
+        }</span>
+
+        <span class="cov8" title="1">return &amp;token, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file12" style="display: none">package repositories
+
+import (
+        "context"
+        "database/sql"
+        "fmt"
+        "log/slog"
+        "time"
+
+        "github.com/eupneart/auth-service/internal/models"
+)
+
+const tokenColumns = `
+  id, user_id, token_type, device_id, client_id,
+  is_revoked, created_at, expires_at, last_used_at
+`
+
+type TokenRepo struct {
+        DB *sql.DB
+}
+
+func NewTokenRepo(db *sql.DB) TokenStore <span class="cov0" title="0">{
+        return &amp;TokenRepo{DB: db}
+}</span>
+
+// SaveTokenMetadata stores metadata for a token
+func (r *TokenRepo) SaveTokenMetadata(ctx context.Context, metadata *models.TokenMetadata) error <span class="cov0" title="0">{
+        stmt := `INSERT INTO token_metadata (id, user_id, token_type, device_id, client_id, is_revoked, created_at, expires_at, last_used_at) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+
+        _, err := r.DB.ExecContext(ctx, stmt,
+                metadata.ID,
+                metadata.UserID,
+                metadata.TokenType,
+                metadata.DeviceID,
+                metadata.ClientID,
+                metadata.IsRevoked,
+                metadata.CreatedAt,
+                metadata.ExpiresAt,
+                metadata.LastUsedAt,
+        )
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to save token metadata",
+                        "error", err,
+                        "query", stmt,
+                        "token_id", metadata.ID,
+                        "user_id", metadata.UserID,
+                        "method", "TokenRepo.SaveTokenMetadata")
+                return fmt.Errorf("saving token metadata: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">slog.DebugContext(ctx, "successfully saved token metadata",
+                "token_id", metadata.ID,
+                "user_id", metadata.UserID,
+                "token_type", metadata.TokenType)
+
+        return nil</span>
+}
+
+// GetTokenMetadata retrieves metadata for a specific token
+func (r *TokenRepo) GetTokenMetadata(ctx context.Context, tokenID string) (*models.TokenMetadata, error) <span class="cov0" title="0">{
+        query := fmt.Sprintf(`SELECT %s FROM token_metadata WHERE id = $1`, tokenColumns)
+
+        row := r.DB.QueryRowContext(ctx, query, tokenID)
+
+        metadata, err := scanTokenMetadata(row)
+        if err != nil </span><span class="cov0" title="0">{
+                if err == sql.ErrNoRows </span><span class="cov0" title="0">{
+                        slog.WarnContext(ctx, "token metadata not found",
+                                "token_id", tokenID,
+                                "method", "TokenRepo.GetTokenMetadata")
+                        return nil, fmt.Errorf("token not found")
+                }</span>
+                <span class="cov0" title="0">slog.ErrorContext(ctx, "failed to query token metadata",
+                        "error", err,
+                        "query", query,
+                        "token_id", tokenID,
+                        "method", "TokenRepo.GetTokenMetadata")
+                return nil, fmt.Errorf("querying token metadata: %w", err)</span>
+        }
+
+        <span class="cov0" title="0">slog.DebugContext(ctx, "successfully retrieved token metadata",
+                "token_id", tokenID,
+                "user_id", metadata.UserID)
+
+        return metadata, nil</span>
+}
+
+// IsTokenRevoked checks if a token has been revoked
+func (r *TokenRepo) IsTokenRevoked(ctx context.Context, tokenID string) (bool, error) <span class="cov0" title="0">{
+        query := `SELECT is_revoked FROM token_metadata WHERE id = $1`
+
+        var isRevoked bool
+        err := r.DB.QueryRowContext(ctx, query, tokenID).Scan(&amp;isRevoked)
+        if err != nil </span><span class="cov0" title="0">{
+                if err == sql.ErrNoRows </span><span class="cov0" title="0">{
+                        // If token doesn't exist, consider it as revoked/invalid
+                        slog.WarnContext(ctx, "token not found when checking revocation status",
+                                "token_id", tokenID,
+                                "method", "TokenRepo.IsTokenRevoked")
+                        return true, nil
+                }</span>
+                <span class="cov0" title="0">slog.ErrorContext(ctx, "failed to check token revocation status",
+                        "error", err,
+                        "query", query,
+                        "token_id", tokenID,
+                        "method", "TokenRepo.IsTokenRevoked")
+                return false, fmt.Errorf("checking token revocation status: %w", err)</span>
+        }
+
+        <span class="cov0" title="0">slog.DebugContext(ctx, "token revocation status checked",
+                "token_id", tokenID,
+                "is_revoked", isRevoked)
+
+        return isRevoked, nil</span>
+}
+
+// RevokeToken marks a token as revoked
+func (r *TokenRepo) RevokeToken(ctx context.Context, tokenID string) error <span class="cov0" title="0">{
+        stmt := `UPDATE token_metadata SET is_revoked = true WHERE id = $1`
+
+        result, err := r.DB.ExecContext(ctx, stmt, tokenID)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to revoke token",
+                        "error", err,
+                        "query", stmt,
+                        "token_id", tokenID,
+                        "method", "TokenRepo.RevokeToken")
+                return fmt.Errorf("revoking token: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">rowsAffected, err := result.RowsAffected()
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to get rows affected after token revocation",
+                        "error", err,
+                        "token_id", tokenID,
+                        "method", "TokenRepo.RevokeToken")
+                return fmt.Errorf("checking revocation result: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">if rowsAffected == 0 </span><span class="cov0" title="0">{
+                slog.WarnContext(ctx, "no token found to revoke",
+                        "token_id", tokenID,
+                        "method", "TokenRepo.RevokeToken")
+                return fmt.Errorf("token not found")
+        }</span>
+
+        <span class="cov0" title="0">slog.InfoContext(ctx, "successfully revoked token",
+                "token_id", tokenID)
+
+        return nil</span>
+}
+
+// RevokeTokenByID marks a token as revoked by its ID (same as RevokeToken)
+func (r *TokenRepo) RevokeTokenByID(ctx context.Context, tokenID string) error <span class="cov0" title="0">{
+        return r.RevokeToken(ctx, tokenID)
+}</span>
+
+// RevokeAllTokensForUser revokes all tokens for a specific user
+func (r *TokenRepo) RevokeAllTokensForUser(ctx context.Context, userID int64) error <span class="cov0" title="0">{
+        stmt := `UPDATE token_metadata SET is_revoked = true WHERE user_id = $1 AND is_revoked = false`
+
+        result, err := r.DB.ExecContext(ctx, stmt, userID)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to revoke all tokens for user",
+                        "error", err,
+                        "query", stmt,
+                        "user_id", userID,
+                        "method", "TokenRepo.RevokeAllTokensForUser")
+                return fmt.Errorf("revoking all tokens for user: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">rowsAffected, err := result.RowsAffected()
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to get rows affected after revoking all tokens",
+                        "error", err,
+                        "user_id", userID,
+                        "method", "TokenRepo.RevokeAllTokensForUser")
+                return fmt.Errorf("checking revocation result: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">slog.InfoContext(ctx, "successfully revoked all tokens for user",
+                "user_id", userID,
+                "tokens_revoked", rowsAffected)
+
+        return nil</span>
+}
+
+// UpdateLastUsed updates the last used timestamp for a token
+func (r *TokenRepo) UpdateLastUsed(ctx context.Context, tokenID string) error <span class="cov0" title="0">{
+        stmt := `UPDATE token_metadata SET last_used_at = $1 WHERE id = $2`
+
+        result, err := r.DB.ExecContext(ctx, stmt, time.Now(), tokenID)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to update last used timestamp",
+                        "error", err,
+                        "query", stmt,
+                        "token_id", tokenID,
+                        "method", "TokenRepo.UpdateLastUsed")
+                return fmt.Errorf("updating last used timestamp: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">rowsAffected, err := result.RowsAffected()
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to get rows affected after updating last used",
+                        "error", err,
+                        "token_id", tokenID,
+                        "method", "TokenRepo.UpdateLastUsed")
+                // Don't return error as this shouldn't fail token validation
+                return nil
+        }</span>
+
+        <span class="cov0" title="0">if rowsAffected == 0 </span><span class="cov0" title="0">{
+                slog.WarnContext(ctx, "no token found to update last used timestamp",
+                        "token_id", tokenID,
+                        "method", "TokenRepo.UpdateLastUsed")
+                // Don't return error as this shouldn't fail token validation
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// CleanupExpiredTokens removes expired tokens from storage
+func (r *TokenRepo) CleanupExpiredTokens(ctx context.Context) error <span class="cov0" title="0">{
+        stmt := `DELETE FROM token_metadata WHERE expires_at &lt; $1`
+
+        result, err := r.DB.ExecContext(ctx, stmt, time.Now())
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to cleanup expired tokens",
+                        "error", err,
+                        "query", stmt,
+                        "method", "TokenRepo.CleanupExpiredTokens")
+                return fmt.Errorf("cleaning up expired tokens: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">rowsAffected, err := result.RowsAffected()
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to get rows affected after cleanup",
+                        "error", err,
+                        "method", "TokenRepo.CleanupExpiredTokens")
+                return fmt.Errorf("checking cleanup result: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">slog.InfoContext(ctx, "successfully cleaned up expired tokens",
+                "tokens_deleted", rowsAffected)
+
+        return nil</span>
+}
+
+// GetAllTokensForUser returns all tokens for a specific user
+func (r *TokenRepo) GetAllTokensForUser(ctx context.Context, userID string) ([]models.TokenMetadata, error) <span class="cov0" title="0">{
+        query := fmt.Sprintf(`SELECT %s FROM token_metadata WHERE user_id = $1 ORDER BY created_at DESC`, tokenColumns)
+
+        rows, err := r.DB.QueryContext(ctx, query, userID)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to query all tokens for user",
+                        "error", err,
+                        "query", query,
+                        "user_id", userID,
+                        "method", "TokenRepo.GetAllTokensForUser")
+                return nil, fmt.Errorf("querying all tokens for user: %w", err)
+        }</span>
+        <span class="cov0" title="0">defer rows.Close()
+
+        tokens, err := scanTokenMetadataRows(ctx, rows)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to scan token metadata rows",
+                        "error", err,
+                        "user_id", userID,
+                        "method", "TokenRepo.GetAllTokensForUser")
+                return nil, fmt.Errorf("scanning token metadata: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">slog.DebugContext(ctx, "successfully retrieved tokens for user",
+                "user_id", userID,
+                "token_count", len(tokens))
+
+        return tokens, nil</span>
+}
+
+// GetActiveTokensForUser returns only active (non-revoked, non-expired) tokens for a user
+func (r *TokenRepo) GetActiveTokensForUser(ctx context.Context, userID string) ([]models.TokenMetadata, error) <span class="cov0" title="0">{
+        query := fmt.Sprintf(`SELECT %s FROM token_metadata 
+                          WHERE user_id = $1 AND is_revoked = false AND expires_at &gt; $2 
+                          ORDER BY created_at DESC`, tokenColumns)
+
+        rows, err := r.DB.QueryContext(ctx, query, userID, time.Now())
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to query active tokens for user",
+                        "error", err,
+                        "query", query,
+                        "user_id", userID,
+                        "method", "TokenRepo.GetActiveTokensForUser")
+                return nil, fmt.Errorf("querying active tokens for user: %w", err)
+        }</span>
+        <span class="cov0" title="0">defer rows.Close()
+
+        tokens, err := scanTokenMetadataRows(ctx, rows)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to scan active token metadata rows",
+                        "error", err,
+                        "user_id", userID,
+                        "method", "TokenRepo.GetActiveTokensForUser")
+                return nil, fmt.Errorf("scanning active token metadata: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">slog.DebugContext(ctx, "successfully retrieved active tokens for user",
+                "user_id", userID,
+                "active_token_count", len(tokens))
+
+        return tokens, nil</span>
+}
+
+// GetTokenCountForUser returns the count of active tokens for a user
+func (r *TokenRepo) GetTokenCountForUser(ctx context.Context, userID string, tokenType string) (int64, error) <span class="cov0" title="0">{
+        var query string
+        var args []interface{}
+
+        if tokenType == "" </span><span class="cov0" title="0">{
+                query = `SELECT COUNT(*) FROM token_metadata 
+                 WHERE user_id = $1 AND is_revoked = false AND expires_at &gt; $2`
+                args = []interface{}{userID, time.Now()}
+        }</span> else<span class="cov0" title="0"> {
+                query = `SELECT COUNT(*) FROM token_metadata 
+                 WHERE user_id = $1 AND token_type = $2 AND is_revoked = false AND expires_at &gt; $3`
+                args = []interface{}{userID, tokenType, time.Now()}
+        }</span>
+
+        <span class="cov0" title="0">var count int64
+        err := r.DB.QueryRowContext(ctx, query, args...).Scan(&amp;count)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to get token count for user",
+                        "error", err,
+                        "query", query,
+                        "user_id", userID,
+                        "token_type", tokenType,
+                        "method", "TokenRepo.GetTokenCountForUser")
+                return 0, fmt.Errorf("getting token count for user: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">slog.DebugContext(ctx, "successfully retrieved token count for user",
+                "user_id", userID,
+                "token_type", tokenType,
+                "count", count)
+
+        return count, nil</span>
+}
+
+// ========================= Helper functions ============================
+
+// scanTokenMetadata is a helper function to scan a single row into a TokenMetadata struct.
+func scanTokenMetadata(row *sql.Row) (*models.TokenMetadata, error) <span class="cov0" title="0">{
+        var metadata models.TokenMetadata
+        var deviceID, clientID sql.NullString
+        var lastUsedAt sql.NullTime
+
+        err := row.Scan(
+                &amp;metadata.ID,
+                &amp;metadata.UserID,
+                &amp;metadata.TokenType,
+                &amp;deviceID,
+                &amp;clientID,
+                &amp;metadata.IsRevoked,
+                &amp;metadata.CreatedAt,
+                &amp;metadata.ExpiresAt,
+                &amp;lastUsedAt,
+        )
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        // Handle nullable fields
+        <span class="cov0" title="0">if deviceID.Valid </span><span class="cov0" title="0">{
+                metadata.DeviceID = deviceID.String
+        }</span>
+        <span class="cov0" title="0">if clientID.Valid </span><span class="cov0" title="0">{
+                metadata.ClientID = clientID.String
+        }</span>
+        <span class="cov0" title="0">if lastUsedAt.Valid </span><span class="cov0" title="0">{
+                metadata.LastUsedAt = lastUsedAt.Time
+        }</span>
+
+        <span class="cov0" title="0">return &amp;metadata, nil</span>
+}
+
+// scanTokenMetadataRows is a helper function to scan multiple rows into a slice of TokenMetadata structs.
+func scanTokenMetadataRows(ctx context.Context, rows *sql.Rows) ([]models.TokenMetadata, error) <span class="cov0" title="0">{
+        var tokens []models.TokenMetadata
+
+        for rows.Next() </span><span class="cov0" title="0">{
+                var metadata models.TokenMetadata
+                var deviceID, clientID sql.NullString
+                var lastUsedAt sql.NullTime
+
+                if err := rows.Scan(
+                        &amp;metadata.ID,
+                        &amp;metadata.UserID,
+                        &amp;metadata.TokenType,
+                        &amp;deviceID,
+                        &amp;clientID,
+                        &amp;metadata.IsRevoked,
+                        &amp;metadata.CreatedAt,
+                        &amp;metadata.ExpiresAt,
+                        &amp;lastUsedAt,
+                ); err != nil </span><span class="cov0" title="0">{
+                        slog.ErrorContext(ctx, "failed to scan token metadata row",
+                                "error", err,
+                                "method", "scanTokenMetadataRows")
+                        return nil, err
+                }</span>
+
+                // Handle nullable fields
+                <span class="cov0" title="0">if deviceID.Valid </span><span class="cov0" title="0">{
+                        metadata.DeviceID = deviceID.String
+                }</span>
+                <span class="cov0" title="0">if clientID.Valid </span><span class="cov0" title="0">{
+                        metadata.ClientID = clientID.String
+                }</span>
+                <span class="cov0" title="0">if lastUsedAt.Valid </span><span class="cov0" title="0">{
+                        metadata.LastUsedAt = lastUsedAt.Time
+                }</span>
+
+                <span class="cov0" title="0">tokens = append(tokens, metadata)</span>
+        }
+
+        // Check if there was any error while iterating through the rows
+        <span class="cov0" title="0">if err := rows.Err(); err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "error iterating through token metadata rows",
+                        "error", err,
+                        "method", "scanTokenMetadataRows")
+                return nil, fmt.Errorf("scanning token metadata: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return tokens, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file13" style="display: none">package repositories
+
+import (
+        "context"
+        "database/sql"
+        "fmt"
+        "log/slog"
+        "time"
+
+        "github.com/eupneart/auth-service/internal/models"
+)
+
+const userColumns = `
+  id, email, first_name, last_name, password,
+  role, is_active, created_at, updated_at, last_login
+`
+
+type UserRepo struct {
+        DB *sql.DB
+}
+
+func NewUserRepo(db *sql.DB) *UserRepo <span class="cov8" title="1">{
+        return &amp;UserRepo{DB: db}
+}</span>
+
+// GetAll returns a slice of all users, sorted by last name
+func (r *UserRepo) GetAll(ctx context.Context) ([]*models.User, error) <span class="cov8" title="1">{
+        query := fmt.Sprintf(`SELECT %s FROM users ORDER BY last_name`, userColumns)
+
+        // Execute query
+        rows, err := r.DB.QueryContext(ctx, query)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to query all users",
+                        "error", err,
+                        "query", query,
+                        "method", "UserRepo.GetAll")
+                return nil, fmt.Errorf("querying all users: %w", err)
+        }</span>
+        <span class="cov8" title="1">defer rows.Close()
+
+        return scanUsers(ctx, rows)</span>
+}
+
+// GetById returns one user by id
+func (r *UserRepo) GetByID(ctx context.Context, id int64) (*models.User, error) <span class="cov8" title="1">{
+        query := fmt.Sprintf(`SELECT %s FROM users WHERE id = $1`, userColumns)
+
+        row := r.DB.QueryRowContext(ctx, query, id)
+
+        usr, err := scanUser(ctx, row)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to query user by id",
+                        "error", err,
+                        "query", query,
+                        "id", id,
+                        "method", "UserRepo.GetById")
+                return nil, fmt.Errorf("querying user by id: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return usr, nil</span>
+}
+
+// GetByEmail returns one user by email
+func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*models.User, error) <span class="cov8" title="1">{
+        query := fmt.Sprintf(`SELECT %s FROM users WHERE email = $1`, userColumns)
+
+        row := r.DB.QueryRowContext(ctx, query, email)
+
+        usr, err := scanUser(ctx, row)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to query user by email",
+                        "error", err,
+                        "query", query,
+                        "email", email,
+                        "method", "UserRepo.GetByEmail")
+                return nil, fmt.Errorf("querying user by email: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return usr, nil</span>
+}
+
+// Update one user in the database, using the user information
+func (r *UserRepo) Update(ctx context.Context, u models.User) error <span class="cov8" title="1">{
+        type field struct {
+                name  string      // Column name in the database
+                value interface{} // Value to be updated
+                isSet bool        // Whether the field should be included in the query
+        }
+
+        // Define the fields to be updated
+        fields := []field{
+                {"email", u.Email, u.Email != ""},
+                {"first_name", u.FirstName, u.FirstName != ""},
+                {"last_name", u.LastName, u.LastName != ""},
+                {"role", u.Role, u.Role != ""},
+                {"is_active", u.IsActive, true}, // is_active field will always be included
+                {"last_login", u.LastLogin, u.LastLogin != time.Time{}},
+        }
+
+        // Base query
+        query := "UPDATE users SET"
+        args := []interface{}{} // empty slice of any values
+        counter := 1
+
+        // Dynamically build the query
+        for _, f := range fields </span><span class="cov8" title="1">{
+                if f.isSet </span><span class="cov8" title="1">{
+                        query += fmt.Sprintf(" %s = $%d,", f.name, counter)
+                        args = append(args, f.value)
+                        counter++
+                }</span>
+        }
+
+        // Always update the `updated_at` field
+        <span class="cov8" title="1">query += fmt.Sprintf(" updated_at = $%d", counter)
+        args = append(args, time.Now())
+        counter++
+
+        // Add the WHERE clause
+        query += fmt.Sprintf(" WHERE id = $%d", counter)
+        args = append(args, u.ID)
+
+        // Execute the query
+        _, err := r.DB.ExecContext(ctx, query, args...)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to update user",
+                        "error", err,
+                        "query", query,
+                        "user_id", u.ID,
+                        "method", "UserRepo.Update")
+                return fmt.Errorf("updating user: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// UpdatePassword sets a new (already hashed) password for a single user.
+// It is intentionally separate from Update so the generic user-update path
+// never touches the password column.
+func (r *UserRepo) UpdatePassword(ctx context.Context, userID int64, hashedPassword string) error <span class="cov8" title="1">{
+        stmt := `UPDATE users SET password = $1, updated_at = $2 WHERE id = $3`
+
+        result, err := r.DB.ExecContext(ctx, stmt, hashedPassword, time.Now(), userID)
+        if err != nil </span><span class="cov8" title="1">{
+                slog.ErrorContext(ctx, "failed to update user password",
+                        "error", err,
+                        "query", stmt,
+                        "user_id", userID,
+                        "method", "UserRepo.UpdatePassword")
+                return fmt.Errorf("updating user password: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">rowsAffected, err := result.RowsAffected()
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to get rows affected after password update",
+                        "error", err,
+                        "user_id", userID,
+                        "method", "UserRepo.UpdatePassword")
+                return fmt.Errorf("checking password update result: %w", err)
+        }</span>
+        <span class="cov8" title="1">if rowsAffected == 0 </span><span class="cov8" title="1">{
+                return fmt.Errorf("updating user password: no user found with id %d", userID)
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// DeleteByID one user from the database, by ID
+func (r *UserRepo) DeleteByID(ctx context.Context, id int64) error <span class="cov8" title="1">{
+        stmt := `DELETE FROM users WHERE id = $1`
+
+        _, err := r.DB.ExecContext(ctx, stmt, id)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to delete user by id",
+                        "error", err,
+                        "query", stmt,
+                        "id", id,
+                        "method", "UserRepo.DeleteByID")
+                return fmt.Errorf("deleting user by id: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// Insert a single user into the DB
+func (r *UserRepo) Insert(ctx context.Context, u models.User) (int64, error) <span class="cov8" title="1">{
+        // sql statement
+        stmt := `INSERT INTO users (email, first_name, last_name, password, role, is_active, created_at, updated_at, last_login) 
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`
+
+        // execute sql statement
+        var newId int64
+        err := r.DB.QueryRowContext(ctx, stmt,
+                u.Email,
+                u.FirstName,
+                u.LastName,
+                u.Password,
+                u.Role,
+                u.IsActive,
+                time.Now(),
+                time.Now(),
+                time.Now(),
+        ).Scan(&amp;newId)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to insert user",
+                        "error", err,
+                        "query", stmt,
+                        "email", u.Email,
+                        "method", "UserRepo.Insert")
+                return 0, fmt.Errorf("inserting user: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return newId, nil</span>
+}
+
+// ========================= Helper functions ============================
+// scanUsers is a helper function to scan multiple rows into a slice of User structs.
+func scanUsers(ctx context.Context, rows *sql.Rows) ([]*models.User, error) <span class="cov8" title="1">{
+        var users []*models.User
+        for rows.Next() </span><span class="cov8" title="1">{
+                var usr models.User
+                // Scan the current row into the usr struct
+                if err := rows.Scan(
+                        &amp;usr.ID,
+                        &amp;usr.Email,
+                        &amp;usr.FirstName,
+                        &amp;usr.LastName,
+                        &amp;usr.Password,
+                        &amp;usr.Role,
+                        &amp;usr.IsActive,
+                        &amp;usr.CreatedAt,
+                        &amp;usr.UpdatedAt,
+                        &amp;usr.LastLogin,
+                ); err != nil </span><span class="cov0" title="0">{
+                        slog.ErrorContext(ctx, "failed to scan user row",
+                                "error", err,
+                                "method", "scanUsers")
+                        return nil, err
+                }</span>
+                // Append the scanned usr to the slice
+                <span class="cov8" title="1">users = append(users, &amp;usr)</span>
+        }
+
+        // Check if there was any error while iterating through the rows
+        <span class="cov8" title="1">if err := rows.Err(); err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "error iterating through user rows",
+                        "error", err,
+                        "method", "scanUsers")
+                return nil, fmt.Errorf("scanning users: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return users, nil</span>
+}
+
+// scanUser is a helper function to scan a single row into a User struct.
+func scanUser(ctx context.Context, row *sql.Row) (*models.User, error) <span class="cov8" title="1">{
+        var usr models.User
+        err := row.Scan(
+                &amp;usr.ID,
+                &amp;usr.Email,
+                &amp;usr.FirstName,
+                &amp;usr.LastName,
+                &amp;usr.Password,
+                &amp;usr.Role,
+                &amp;usr.IsActive,
+                &amp;usr.CreatedAt,
+                &amp;usr.UpdatedAt,
+                &amp;usr.LastLogin,
+        )
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to scan user",
+                        "error", err,
+                        "method", "scanUser")
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">return &amp;usr, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file14" style="display: none">package services
+
+import (
+        "context"
+        "crypto/rand"
+        "crypto/sha256"
+        "encoding/base64"
+        "encoding/hex"
+        "errors"
+        "fmt"
+        "log/slog"
+        "net/url"
+        "strings"
+        "time"
+
+        "github.com/eupneart/auth-service/internal/models"
+        "github.com/eupneart/auth-service/internal/repositories"
+        "github.com/eupneart/auth-service/pkg/ratelimit"
+        "github.com/eupneart/auth-service/utils"
+)
+
+var (
+        ErrWeakPassword       = errors.New("password does not meet strength requirements")
+        ErrInvalidResetToken  = errors.New("invalid password reset token")
+        ErrInvalidCredentials = errors.New("invalid credentials")
+)
+
+// resetTokenBytes is the entropy of the opaque token handed to the user. The
+// SHA-256 of its base64 encoding is what reaches the database, sized to the
+// token_hash VARCHAR(64) column.
+const resetTokenBytes = 32
+
+// The resource protected here is the account holder's inbox, so the allowance
+// is per address and independent of who asked. Source addresses are limited
+// separately by the HTTP middleware.
+const (
+        resetRequestsPerEmail = 3
+        resetRequestWindow    = 15 * time.Minute
+)
+
+type PasswordResetConfig struct {
+        // BaseURL is the page that receives the token. It comes from configuration
+        // only; deriving it from a request header would let an attacker redirect
+        // reset links to a host they control.
+        BaseURL       string
+        TokenLifetime time.Duration
+}
+
+type PasswordResetService struct {
+        config       PasswordResetConfig
+        userService  *UserService
+        userRepo     repositories.UserRepoInterface
+        tokens       repositories.PasswordResetTokenStore
+        sessions     TokenService
+        mailer       PasswordResetMailer
+        emailLimiter *ratelimit.Limiter
+}
+
+func NewPasswordResetService(
+        config PasswordResetConfig,
+        userService *UserService,
+        userRepo repositories.UserRepoInterface,
+        tokens repositories.PasswordResetTokenStore,
+        sessions TokenService,
+        mailer PasswordResetMailer,
+) *PasswordResetService <span class="cov8" title="1">{
+        return &amp;PasswordResetService{
+                config:       config,
+                userService:  userService,
+                userRepo:     userRepo,
+                tokens:       tokens,
+                sessions:     sessions,
+                mailer:       mailer,
+                emailLimiter: ratelimit.New(resetRequestsPerEmail, resetRequestWindow),
+        }
+}</span>
+
+// RequestReset issues a reset link for email when it belongs to an active
+// account. Unknown and inactive addresses return nil rather than an error, so
+// callers cannot distinguish them and neither can their clients. A non-nil
+// error means the request genuinely failed, never that the account is absent.
+func (s *PasswordResetService) RequestReset(ctx context.Context, email string) error <span class="cov8" title="1">{
+        ctx, cancel := context.WithTimeout(ctx, dbTimeout)
+        defer cancel()
+
+        user, err := s.userRepo.GetByEmail(ctx, email)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to look up user for password reset",
+                        "error", err,
+                        "method", "PasswordResetService.RequestReset")
+                return fmt.Errorf("looking up user: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">if user == nil || !user.IsActive </span><span class="cov8" title="1">{
+                slog.InfoContext(ctx, "password reset requested for unknown or inactive account",
+                        "method", "PasswordResetService.RequestReset")
+                return nil
+        }</span>
+
+        // Checked only once the account is known to exist, so the limiter's key
+        // space stays bounded by real accounts rather than by attacker input.
+        <span class="cov8" title="1">if !s.emailLimiter.Allow(user.Email) </span><span class="cov0" title="0">{
+                slog.WarnContext(ctx, "password reset requests throttled for account",
+                        "user_id", user.ID,
+                        "method", "PasswordResetService.RequestReset")
+                return nil
+        }</span>
+
+        <span class="cov8" title="1">rawToken, tokenHash, err := generateResetToken()
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("generating reset token: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">token := &amp;models.PasswordResetToken{
+                UserID:    user.ID,
+                TokenHash: tokenHash,
+                ExpiresAt: time.Now().Add(s.config.TokenLifetime),
+        }
+        if err := s.tokens.CreatePasswordResetToken(ctx, token); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("storing reset token: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">if err := s.mailer.SendPasswordReset(ctx, user.Email, s.resetURL(rawToken)); err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to send password reset email",
+                        "error", err,
+                        "user_id", user.ID,
+                        "method", "PasswordResetService.RequestReset")
+                return fmt.Errorf("sending reset link: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">slog.InfoContext(ctx, "password reset link sent",
+                "user_id", user.ID,
+                "method", "PasswordResetService.RequestReset")
+
+        return nil</span>
+}
+
+// ResetWithToken completes the forgotten-password flow. Missing, expired, and
+// already-used tokens all surface as ErrInvalidResetToken so responses cannot
+// distinguish them.
+func (s *PasswordResetService) ResetWithToken(ctx context.Context, rawToken, newPassword string) error <span class="cov8" title="1">{
+        // Checked before the token is consumed so a rejected password does not burn
+        // the user's single-use link.
+        if !utils.IsValidPassword(newPassword) </span><span class="cov8" title="1">{
+                return ErrWeakPassword
+        }</span>
+
+        <span class="cov8" title="1">if rawToken == "" </span><span class="cov0" title="0">{
+                return ErrInvalidResetToken
+        }</span>
+
+        <span class="cov8" title="1">token, err := s.tokens.ConsumePasswordResetToken(ctx, hashResetToken(rawToken))
+        if err != nil </span><span class="cov8" title="1">{
+                if errors.Is(err, repositories.ErrResetTokenNotFound) </span><span class="cov8" title="1">{
+                        return ErrInvalidResetToken
+                }</span>
+                <span class="cov8" title="1">return fmt.Errorf("consuming reset token: %w", err)</span>
+        }
+
+        <span class="cov8" title="1">return s.applyNewPassword(ctx, token.UserID, newPassword)</span>
+}
+
+// ChangePassword completes the authenticated flow. userID must come from
+// verified token claims, never from the request body.
+func (s *PasswordResetService) ChangePassword(ctx context.Context, userID int64, currentPassword, newPassword string) error <span class="cov8" title="1">{
+        if userID == 0 </span><span class="cov0" title="0">{
+                return fmt.Errorf("user ID must be provided")
+        }</span>
+
+        <span class="cov8" title="1">if !utils.IsValidPassword(newPassword) </span><span class="cov8" title="1">{
+                return ErrWeakPassword
+        }</span>
+
+        <span class="cov8" title="1">user, err := s.userRepo.GetByID(ctx, userID)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("looking up user: %w", err)
+        }</span>
+        <span class="cov8" title="1">if user == nil </span><span class="cov0" title="0">{
+                return ErrUserNotFound
+        }</span>
+
+        <span class="cov8" title="1">matches, err := s.userService.PasswordMatches(user, currentPassword)
+        if err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("verifying current password: %w", err)
+        }</span>
+        <span class="cov8" title="1">if !matches </span><span class="cov8" title="1">{
+                return ErrInvalidCredentials
+        }</span>
+
+        <span class="cov8" title="1">return s.applyNewPassword(ctx, userID, newPassword)</span>
+}
+
+// applyNewPassword performs the three writes of a password change in a fixed
+// order, aborting on the first failure. There is no enclosing transaction, so
+// the order is what carries the guarantee: updating the password last makes the
+// dangerous partial state — new password accepted while old sessions stay
+// valid — unreachable. Every earlier failure leaves the old password intact.
+func (s *PasswordResetService) applyNewPassword(ctx context.Context, userID int64, newPassword string) error <span class="cov8" title="1">{
+        if err := s.sessions.RevokeAllTokensForUser(ctx, userID); err != nil </span><span class="cov8" title="1">{
+                return fmt.Errorf("revoking sessions: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">if err := s.tokens.InvalidatePasswordResetTokensForUser(ctx, userID); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("invalidating outstanding reset tokens: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">if err := s.userService.ResetPassword(ctx, &amp;models.User{ID: userID, Password: newPassword}); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("updating password: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">slog.InfoContext(ctx, "password changed and sessions revoked",
+                "user_id", userID,
+                "method", "PasswordResetService.applyNewPassword")
+
+        return nil</span>
+}
+
+// ========================= Helper functions ============================
+
+func (s *PasswordResetService) resetURL(rawToken string) string <span class="cov8" title="1">{
+        return fmt.Sprintf("%s?token=%s",
+                strings.TrimRight(s.config.BaseURL, "/?"),
+                url.QueryEscape(rawToken))
+}</span>
+
+// generateResetToken returns the opaque token to email and the hash to store.
+// The raw value exists only in the caller's memory and the outgoing message.
+func generateResetToken() (rawToken, tokenHash string, err error) <span class="cov8" title="1">{
+        buf := make([]byte, resetTokenBytes)
+        if _, err := rand.Read(buf); err != nil </span><span class="cov0" title="0">{
+                return "", "", err
+        }</span>
+
+        <span class="cov8" title="1">rawToken = base64.RawURLEncoding.EncodeToString(buf)
+        return rawToken, hashResetToken(rawToken), nil</span>
+}
+
+func hashResetToken(rawToken string) string <span class="cov8" title="1">{
+        sum := sha256.Sum256([]byte(rawToken))
+        return hex.EncodeToString(sum[:])
+}</span>
+</pre>
+		
+		<pre class="file" id="file15" style="display: none">package services
+
+import (
+        "context"
+        "fmt"
+        "log/slog"
+        "strconv"
+        "time"
+
+        "github.com/eupneart/auth-service/internal/models"
+        "github.com/eupneart/auth-service/internal/repositories"
+        "github.com/golang-jwt/jwt/v5"
+        "github.com/google/uuid"
+)
+
+type TokenServiceConfig struct {
+        JWTSecret            string
+        AccessTokenDuration  time.Duration
+        RefreshTokenDuration time.Duration
+        Issuer               string
+}
+
+type tokenService struct {
+        config   TokenServiceConfig
+        userRepo repositories.UserRepoInterface
+        store    repositories.TokenStore
+        logger   *slog.Logger
+}
+
+func NewTokenService(config TokenServiceConfig, userRepo repositories.UserRepoInterface, store repositories.TokenStore, logger *slog.Logger) TokenService <span class="cov0" title="0">{
+        return &amp;tokenService{
+                config:   config,
+                userRepo: userRepo,
+                store:    store,
+                logger:   logger,
+        }
+}</span>
+
+func (s *tokenService) GenerateTokens(ctx context.Context, user *models.User) (accessToken, refreshToken string, err error) <span class="cov8" title="1">{
+        s.logger.InfoContext(ctx, "Generating tokens for user",
+                slog.Int64("user_id", user.ID),
+                slog.String("email", user.Email))
+
+        // Generate unique IDs for both tokens
+        accessTokenID := uuid.New().String()
+        refreshTokenID := uuid.New().String()
+
+        // Create access token claims
+        accessClaims := &amp;models.Claims{
+                RegisteredClaims: jwt.RegisteredClaims{
+                        ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.config.AccessTokenDuration)),
+                        IssuedAt:  jwt.NewNumericDate(time.Now()),
+                        NotBefore: jwt.NewNumericDate(time.Now()),
+                        Issuer:    s.config.Issuer,
+                        Subject:   strconv.FormatInt(user.ID, 10),
+                        ID:        accessTokenID,
+                },
+                UserID:    user.ID,
+                Email:     user.Email,
+                Role:      user.Role,
+                TokenType: models.TokenTypeAccess,
+        }
+
+        // Create refresh token claims
+        refreshClaims := &amp;models.Claims{
+                RegisteredClaims: jwt.RegisteredClaims{
+                        ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.config.RefreshTokenDuration)),
+                        IssuedAt:  jwt.NewNumericDate(time.Now()),
+                        NotBefore: jwt.NewNumericDate(time.Now()),
+                        Issuer:    s.config.Issuer,
+                        Subject:   strconv.FormatInt(user.ID, 10),
+                        ID:        refreshTokenID,
+                },
+                UserID:    user.ID,
+                Email:     user.Email,
+                Role:      user.Role,
+                TokenType: models.TokenTypeRefresh,
+        }
+
+        // Generate access token
+        accessTokenJWT := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
+        accessToken, err = accessTokenJWT.SignedString([]byte(s.config.JWTSecret))
+        if err != nil </span><span class="cov0" title="0">{
+                s.logger.ErrorContext(ctx, "Failed to generate access token",
+                        slog.Int64("user_id", user.ID),
+                        slog.String("error", err.Error()))
+                return "", "", fmt.Errorf("failed to generate access token: %w", err)
+        }</span>
+
+        // Generate refresh token
+        <span class="cov8" title="1">refreshTokenJWT := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
+        refreshToken, err = refreshTokenJWT.SignedString([]byte(s.config.JWTSecret))
+        if err != nil </span><span class="cov0" title="0">{
+                s.logger.ErrorContext(ctx, "Failed to generate refresh token",
+                        slog.Int64("user_id", user.ID),
+                        slog.String("error", err.Error()))
+                return "", "", fmt.Errorf("failed to generate refresh token: %w", err)
+        }</span>
+
+        // Store token metadata
+        <span class="cov8" title="1">accessMetadata := &amp;models.TokenMetadata{
+                ID:        accessTokenID,
+                UserID:    user.ID,
+                TokenType: models.TokenTypeAccess,
+                IsRevoked: false,
+                CreatedAt: time.Now(),
+                ExpiresAt: accessClaims.ExpiresAt.Time,
+        }
+
+        refreshMetadata := &amp;models.TokenMetadata{
+                ID:        refreshTokenID,
+                UserID:    user.ID,
+                TokenType: models.TokenTypeRefresh,
+                IsRevoked: false,
+                CreatedAt: time.Now(),
+                ExpiresAt: refreshClaims.ExpiresAt.Time,
+        }
+
+        // Store both tokens metadata
+        if err := s.store.SaveTokenMetadata(ctx, accessMetadata); err != nil </span><span class="cov8" title="1">{
+                s.logger.ErrorContext(ctx, "Failed to store access token metadata",
+                        slog.Int64("user_id", user.ID),
+                        slog.String("token_id", accessTokenID),
+                        slog.String("error", err.Error()))
+                return "", "", fmt.Errorf("failed to store access token metadata: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">if err := s.store.SaveTokenMetadata(ctx, refreshMetadata); err != nil </span><span class="cov0" title="0">{
+                s.logger.ErrorContext(ctx, "Failed to store refresh token metadata",
+                        slog.Int64("user_id", user.ID),
+                        slog.String("token_id", refreshTokenID),
+                        slog.String("error", err.Error()))
+                return "", "", fmt.Errorf("failed to store refresh token metadata: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">s.logger.InfoContext(ctx, "Successfully generated tokens",
+                slog.Int64("user_id", user.ID),
+                slog.String("access_token_id", accessTokenID),
+                slog.String("refresh_token_id", refreshTokenID))
+
+        return accessToken, refreshToken, nil</span>
+}
+
+// ValidateToken verifies a token and returns its claims if valid
+func (s *tokenService) ValidateToken(ctx context.Context, tokenStr string) (*models.Claims, error) <span class="cov8" title="1">{
+        // Parse and validate token
+        token, err := jwt.ParseWithClaims(tokenStr, &amp;models.Claims{}, func(token *jwt.Token) (interface{}, error) </span><span class="cov8" title="1">{
+                // Validate signing method
+                if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok </span><span class="cov0" title="0">{
+                        return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+                }</span>
+                <span class="cov8" title="1">return []byte(s.config.JWTSecret), nil</span>
+        })
+        <span class="cov8" title="1">if err != nil </span><span class="cov8" title="1">{
+                s.logger.WarnContext(ctx, "Failed to parse token", slog.String("error", err.Error()))
+                return nil, fmt.Errorf("failed to parse token: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">claims, ok := token.Claims.(*models.Claims)
+        if !ok || !token.Valid </span><span class="cov0" title="0">{
+                s.logger.WarnContext(ctx, "Invalid token claims or token not valid")
+                return nil, ErrInvalidToken
+        }</span>
+
+        // Check if token is revoked
+        <span class="cov8" title="1">revoked, err := s.store.IsTokenRevoked(ctx, claims.ID)
+        if err != nil </span><span class="cov0" title="0">{
+                s.logger.ErrorContext(ctx, "Failed to check token revocation status",
+                        slog.String("token_id", claims.ID),
+                        slog.String("error", err.Error()))
+                return nil, fmt.Errorf("failed to check token revocation status: %w", err)
+        }</span>
+        <span class="cov8" title="1">if revoked </span><span class="cov8" title="1">{
+                s.logger.WarnContext(ctx, "Attempted to use revoked token",
+                        slog.String("token_id", claims.ID),
+                        slog.Int64("user_id", claims.UserID))
+                return nil, ErrTokenRevoked
+        }</span>
+
+        // Update last used timestamp
+        <span class="cov8" title="1">if err := s.store.UpdateLastUsed(ctx, claims.ID); err != nil </span><span class="cov0" title="0">{
+                s.logger.ErrorContext(ctx, "Failed to update token last used timestamp",
+                        slog.String("token_id", claims.ID),
+                        slog.String("error", err.Error()))
+                // Don't fail the validation for this error
+        }</span>
+
+        <span class="cov8" title="1">s.logger.DebugContext(ctx, "Token validated successfully",
+                slog.String("token_id", claims.ID),
+                slog.Int64("user_id", claims.UserID),
+                slog.String("token_type", claims.TokenType))
+
+        return claims, nil</span>
+}
+
+// RefreshAccessToken generates a new access token using a refresh token
+func (s *tokenService) RefreshAccessToken(ctx context.Context, refreshToken string) (accessToken string, err error) <span class="cov8" title="1">{
+        s.logger.InfoContext(ctx, "Refreshing access token")
+
+        // Validate refresh token
+        claims, err := s.ValidateToken(ctx, refreshToken)
+        if err != nil </span><span class="cov0" title="0">{
+                s.logger.WarnContext(ctx, "Invalid refresh token provided", slog.String("error", err.Error()))
+                return "", fmt.Errorf("invalid refresh token: %w", err)
+        }</span>
+
+        // Check if it's actually a refresh token
+        <span class="cov8" title="1">if claims.TokenType != models.TokenTypeRefresh </span><span class="cov8" title="1">{
+                s.logger.WarnContext(ctx, "Attempted to refresh with non-refresh token",
+                        slog.String("token_type", claims.TokenType),
+                        slog.Int64("user_id", claims.UserID))
+                return "", ErrInvalidTokenType
+        }</span>
+
+        // Get user to fetch latest roles and information
+        <span class="cov8" title="1">user, err := s.userRepo.GetByID(ctx, claims.UserID)
+        if err != nil </span><span class="cov8" title="1">{
+                s.logger.ErrorContext(ctx, "Failed to get user for token refresh",
+                        slog.Int64("user_id", claims.UserID),
+                        slog.String("error", err.Error()))
+                return "", fmt.Errorf("failed to get user: %w", err)
+        }</span>
+
+        // Generate new access token (but not refresh token)
+        <span class="cov8" title="1">accessTokenID := uuid.New().String()
+
+        accessClaims := &amp;models.Claims{
+                RegisteredClaims: jwt.RegisteredClaims{
+                        ExpiresAt: jwt.NewNumericDate(time.Now().Add(s.config.AccessTokenDuration)),
+                        IssuedAt:  jwt.NewNumericDate(time.Now()),
+                        NotBefore: jwt.NewNumericDate(time.Now()),
+                        Issuer:    s.config.Issuer,
+                        Subject:   strconv.FormatInt(user.ID, 10),
+                        ID:        accessTokenID,
+                },
+                UserID:    user.ID,
+                Email:     user.Email,
+                Role:      user.Role,
+                TokenType: models.TokenTypeAccess,
+        }
+
+        // Generate access token
+        accessTokenJWT := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
+        accessToken, err = accessTokenJWT.SignedString([]byte(s.config.JWTSecret))
+        if err != nil </span><span class="cov0" title="0">{
+                s.logger.ErrorContext(ctx, "Failed to generate new access token",
+                        slog.Int64("user_id", user.ID),
+                        slog.String("error", err.Error()))
+                return "", fmt.Errorf("failed to generate access token: %w", err)
+        }</span>
+
+        // Store new access token metadata
+        <span class="cov8" title="1">accessMetadata := &amp;models.TokenMetadata{
+                ID:        accessTokenID,
+                UserID:    user.ID,
+                TokenType: models.TokenTypeAccess,
+                IsRevoked: false,
+                CreatedAt: time.Now(),
+                ExpiresAt: accessClaims.ExpiresAt.Time,
+        }
+
+        if err := s.store.SaveTokenMetadata(ctx, accessMetadata); err != nil </span><span class="cov0" title="0">{
+                s.logger.ErrorContext(ctx, "Failed to store new access token metadata",
+                        slog.String("token_id", accessTokenID),
+                        slog.Int64("user_id", user.ID),
+                        slog.String("error", err.Error()))
+                return "", fmt.Errorf("failed to store access token metadata: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">s.logger.InfoContext(ctx, "Successfully refreshed access token",
+                slog.Int64("user_id", user.ID),
+                slog.String("new_token_id", accessTokenID),
+                slog.String("refresh_token_id", claims.ID))
+
+        return accessToken, nil</span>
+}
+
+// RevokeToken invalidates a token (for blacklisting)
+func (s *tokenService) RevokeToken(ctx context.Context, tokenStr string) error <span class="cov8" title="1">{
+        // Parse token to get ID
+        claims, err := s.parseTokenWithoutValidation(tokenStr)
+        if err != nil </span><span class="cov8" title="1">{
+                s.logger.ErrorContext(ctx, "Failed to parse token for revocation", slog.String("error", err.Error()))
+                return fmt.Errorf("failed to parse token for revocation: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">s.logger.InfoContext(ctx, "Revoking token",
+                slog.String("token_id", claims.ID),
+                slog.Int64("user_id", claims.UserID),
+                slog.String("token_type", claims.TokenType))
+
+        // Revoke token in store
+        if err := s.store.RevokeToken(ctx, claims.ID); err != nil </span><span class="cov0" title="0">{
+                s.logger.ErrorContext(ctx, "Failed to revoke token",
+                        slog.String("token_id", claims.ID),
+                        slog.String("error", err.Error()))
+                return err
+        }</span>
+
+        <span class="cov8" title="1">s.logger.InfoContext(ctx, "Successfully revoked token",
+                slog.String("token_id", claims.ID),
+                slog.Int64("user_id", claims.UserID))
+
+        return nil</span>
+}
+
+// GetTokenMetadata retrieves stored metadata for a token
+func (s *tokenService) GetTokenMetadata(ctx context.Context, tokenID string) (*models.TokenMetadata, error) <span class="cov0" title="0">{
+        metadata, err := s.store.GetTokenMetadata(ctx, tokenID)
+        if err != nil </span><span class="cov0" title="0">{
+                s.logger.ErrorContext(ctx, "Failed to get token metadata",
+                        slog.String("token_id", tokenID),
+                        slog.String("error", err.Error()))
+                return nil, err
+        }</span>
+        <span class="cov0" title="0">return metadata, nil</span>
+}
+
+// IsTokenRevoked checks if a token has been revoked
+func (s *tokenService) IsTokenRevoked(ctx context.Context, tokenID string) (bool, error) <span class="cov0" title="0">{
+        revoked, err := s.store.IsTokenRevoked(ctx, tokenID)
+        if err != nil </span><span class="cov0" title="0">{
+                s.logger.ErrorContext(ctx, "Failed to check if token is revoked",
+                        slog.String("token_id", tokenID),
+                        slog.String("error", err.Error()))
+                return false, err
+        }</span>
+        <span class="cov0" title="0">return revoked, nil</span>
+}
+
+// RevokeAllTokensForUser invalidates all tokens for a specific user
+func (s *tokenService) RevokeAllTokensForUser(ctx context.Context, userID int64) error <span class="cov0" title="0">{
+        s.logger.InfoContext(ctx, "Revoking all tokens for user", slog.Int64("user_id", userID))
+
+        err := s.store.RevokeAllTokensForUser(ctx, userID)
+        if err != nil </span><span class="cov0" title="0">{
+                s.logger.ErrorContext(ctx, "Failed to revoke all tokens for user",
+                        slog.Int64("user_id", userID),
+                        slog.String("error", err.Error()))
+                return err
+        }</span>
+
+        <span class="cov0" title="0">s.logger.InfoContext(ctx, "Successfully revoked all tokens for user", slog.Int64("user_id", userID))
+        return nil</span>
+}
+
+// CleanupExpiredTokens removes expired tokens from storage
+func (s *tokenService) CleanupExpiredTokens(ctx context.Context) error <span class="cov0" title="0">{
+        s.logger.InfoContext(ctx, "Starting cleanup of expired tokens")
+
+        err := s.store.CleanupExpiredTokens(ctx)
+        if err != nil </span><span class="cov0" title="0">{
+                s.logger.ErrorContext(ctx, "Failed to cleanup expired tokens", slog.String("error", err.Error()))
+                return err
+        }</span>
+
+        <span class="cov0" title="0">s.logger.InfoContext(ctx, "Successfully cleaned up expired tokens")
+        return nil</span>
+}
+
+// Helper function to parse token without validation
+func (s *tokenService) parseTokenWithoutValidation(tokenString string) (*models.Claims, error) <span class="cov8" title="1">{
+        token, err := jwt.ParseWithClaims(tokenString, &amp;models.Claims{}, func(token *jwt.Token) (interface{}, error) </span><span class="cov8" title="1">{
+                return []byte(s.config.JWTSecret), nil
+        }</span>)
+
+        <span class="cov8" title="1">if err != nil &amp;&amp; token == nil </span><span class="cov8" title="1">{
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">claims, ok := token.Claims.(*models.Claims)
+        if !ok </span><span class="cov0" title="0">{
+                return nil, ErrInvalidClaims
+        }</span>
+
+        <span class="cov8" title="1">return claims, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file16" style="display: none">package services
+
+import (
+        "context"
+        "errors"
+        "fmt"
+        "log/slog"
+        "time"
+
+        "github.com/eupneart/auth-service/internal/models"
+        "github.com/eupneart/auth-service/internal/repositories"
+        "github.com/eupneart/auth-service/utils"
+        "golang.org/x/crypto/bcrypt"
+)
+
+type UserService struct {
+        userRepo repositories.UserRepoInterface
+}
+
+const dbTimeout = 3 * time.Second
+
+// New is the function used to create an instance of the service package.
+// It returns the type UserService.
+func New(userRepo repositories.UserRepoInterface) *UserService <span class="cov8" title="1">{
+        return &amp;UserService{userRepo: userRepo}
+}</span>
+
+func (s *UserService) GetAll(ctx context.Context) ([]*models.User, error) <span class="cov8" title="1">{
+        ctx, cancel := context.WithTimeout(ctx, dbTimeout)
+        defer cancel()
+
+        users, err := s.userRepo.GetAll(ctx)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to get all users from repository",
+                        "error", err,
+                        "method", "UserService.GetAll")
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">slog.InfoContext(ctx, "successfully retrieved all users",
+                "user_count", len(users),
+                "method", "UserService.GetAll")
+
+        return users, nil</span>
+}
+
+func (s *UserService) GetByID(ctx context.Context, id int64) (*models.User, error) <span class="cov8" title="1">{
+        // Validate the input user data
+        if id == 0 </span><span class="cov8" title="1">{
+                slog.WarnContext(ctx, "invalid user ID provided (zero value)",
+                        "id", id,
+                        "method", "UserService.GetByID")
+                return nil, fmt.Errorf("user ID must be provided")
+        }</span>
+
+        <span class="cov8" title="1">ctx, cancel := context.WithTimeout(ctx, dbTimeout)
+        defer cancel()
+
+        user, err := s.userRepo.GetByID(ctx, id)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to get user by ID from repository",
+                        "error", err,
+                        "id", id,
+                        "method", "UserService.GetByID")
+                return nil, err
+        }</span>
+        <span class="cov8" title="1">if user == nil </span><span class="cov0" title="0">{
+                slog.WarnContext(ctx, "user repository returned nil user",
+                        "id", id,
+                        "method", "UserService.GetByID")
+                return nil, nil
+        }</span>
+
+        <span class="cov8" title="1">slog.InfoContext(ctx, "successfully retrieved user by ID",
+                "id", id,
+                "email", user.Email,
+                "method", "UserService.GetByID")
+
+        return user, nil</span>
+}
+
+func (s *UserService) GetByEmail(ctx context.Context, email string) (*models.User, error) <span class="cov8" title="1">{
+        if email == "" </span><span class="cov8" title="1">{
+                slog.WarnContext(ctx, "empty email provided",
+                        "email", email,
+                        "method", "UserService.GetByEmail")
+                return nil, fmt.Errorf("user email must be provided")
+        }</span>
+
+        <span class="cov8" title="1">ctx, cancel := context.WithTimeout(ctx, dbTimeout)
+        defer cancel()
+
+        user, err := s.userRepo.GetByEmail(ctx, email)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to get user by email from repository",
+                        "error", err,
+                        "email", email,
+                        "method", "UserService.GetByEmail")
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">if user != nil </span><span class="cov8" title="1">{
+                slog.InfoContext(ctx, "successfully retrieved user by email",
+                        "email", email,
+                        "user_id", user.ID,
+                        "method", "UserService.GetByEmail")
+        }</span>
+
+        <span class="cov8" title="1">return user, nil</span>
+}
+
+// Update updates the fields of a user. Only non-zero or non-empty fields in the user struct will be updated.
+func (s *UserService) Update(ctx context.Context, u models.User) error <span class="cov8" title="1">{
+        if u.ID == 0 </span><span class="cov8" title="1">{
+                slog.WarnContext(ctx, "invalid user ID provided for update (zero value)",
+                        "id", u.ID,
+                        "method", "UserService.Update")
+                return fmt.Errorf("user ID must be provided")
+        }</span>
+
+        <span class="cov8" title="1">ctx, cancel := context.WithTimeout(ctx, dbTimeout)
+        defer cancel()
+
+        // Call the repository's Update method
+        err := s.userRepo.Update(ctx, u)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to update user in repository",
+                        "error", err,
+                        "user_id", u.ID,
+                        "email", u.Email,
+                        "method", "UserService.Update")
+                return fmt.Errorf("failed to update user: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">slog.InfoContext(ctx, "successfully updated user",
+                "user_id", u.ID,
+                "email", u.Email,
+                "method", "UserService.Update")
+
+        return nil</span>
+}
+
+func (s *UserService) DeleteByID(ctx context.Context, id int64) error <span class="cov8" title="1">{
+        if id == 0 </span><span class="cov8" title="1">{
+                slog.WarnContext(ctx, "invalid user ID provided for deletion (zero value)",
+                        "id", id,
+                        "method", "UserService.DeleteByID")
+                return fmt.Errorf("user ID must be provided")
+        }</span>
+
+        <span class="cov8" title="1">ctx, cancel := context.WithTimeout(ctx, dbTimeout)
+        defer cancel()
+
+        err := s.userRepo.DeleteByID(ctx, id)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to delete user from repository",
+                        "error", err,
+                        "id", id,
+                        "method", "UserService.DeleteByID")
+                return err
+        }</span>
+
+        <span class="cov8" title="1">slog.InfoContext(ctx, "successfully deleted user",
+                "id", id,
+                "method", "UserService.DeleteByID")
+
+        return nil</span>
+}
+
+func (s *UserService) Insert(ctx context.Context, u models.User) (int64, error) <span class="cov8" title="1">{
+        ctx, cancel := context.WithTimeout(ctx, dbTimeout)
+        defer cancel()
+
+        // Encrypt the user pwd (hash the pwd)
+        encryptedPwd, err := bcrypt.GenerateFromPassword([]byte(u.Password), 12)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to encrypt password",
+                        "error", err,
+                        "email", u.Email,
+                        "method", "UserService.Insert")
+                return 0, fmt.Errorf("encrypting password: %w", err)
+        }</span>
+
+        // Update the user password
+        <span class="cov8" title="1">u.Password = string(encryptedPwd)
+
+        newUserID, err := s.userRepo.Insert(ctx, u)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to insert user in repository",
+                        "error", err,
+                        "email", u.Email,
+                        "first_name", u.FirstName,
+                        "last_name", u.LastName,
+                        "method", "UserService.Insert")
+                return 0, err
+        }</span>
+
+        <span class="cov8" title="1">slog.InfoContext(ctx, "successfully inserted new user",
+                "user_id", newUserID,
+                "email", u.Email,
+                "first_name", u.FirstName,
+                "last_name", u.LastName,
+                "method", "UserService.Insert")
+
+        return newUserID, nil</span>
+}
+
+// ResetPassword is the method used to change a user's password.
+func (s *UserService) ResetPassword(ctx context.Context, user *models.User) error <span class="cov8" title="1">{
+        if user == nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("user cannot be nil")
+        }</span>
+
+        <span class="cov8" title="1">if user.ID == 0 </span><span class="cov8" title="1">{
+                return fmt.Errorf("user ID must be provided")
+        }</span>
+
+        <span class="cov8" title="1">if user.Password == "" </span><span class="cov8" title="1">{
+                return fmt.Errorf("password cannot be empty")
+        }</span>
+
+        <span class="cov8" title="1">if !utils.IsValidPassword(user.Password) </span><span class="cov8" title="1">{
+                return fmt.Errorf("password does not meet strength requirements")
+        }</span>
+
+        <span class="cov8" title="1">ctx, cancel := context.WithTimeout(ctx, dbTimeout)
+        defer cancel()
+
+        // Hash the new password
+        hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), 12)
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to hash password during reset",
+                        "error", err,
+                        "user_id", user.ID,
+                        "method", "UserService.ResetPassword")
+                return fmt.Errorf("failed to hash password: %w", err)
+        }</span>
+
+        // Persist via the dedicated password-update path (not the generic Update,
+        // which does not touch the password column).
+        <span class="cov8" title="1">err = s.userRepo.UpdatePassword(ctx, user.ID, string(hashedPassword))
+        if err != nil </span><span class="cov0" title="0">{
+                slog.ErrorContext(ctx, "failed to update password in repository",
+                        "error", err,
+                        "user_id", user.ID,
+                        "method", "UserService.ResetPassword")
+                return err
+        }</span>
+
+        <span class="cov8" title="1">slog.InfoContext(ctx, "successfully reset user password",
+                "user_id", user.ID,
+                "method", "UserService.ResetPassword")
+
+        return nil</span>
+}
+
+// PasswordMatches uses Go's bcrypt package to compare a user supplied password
+// with the hash we have stored for a given user in the database. If the password
+// and hash match, we return true; otherwise, we return false.
+func (s *UserService) PasswordMatches(u *models.User, plainText string) (bool, error) <span class="cov8" title="1">{
+        err := bcrypt.CompareHashAndPassword([]byte(u.Password), []byte(plainText))
+        if err != nil </span><span class="cov8" title="1">{
+                switch </span>{
+                case errors.Is(err, bcrypt.ErrMismatchedHashAndPassword):<span class="cov8" title="1"> // invalid password
+                        slog.Warn("password mismatch during authentication",
+                                "user_id", u.ID,
+                                "email", u.Email,
+                                "method", "UserService.PasswordMatches")
+                        return false, nil</span>
+                default:<span class="cov0" title="0">
+                        slog.Error("unexpected error during password comparison",
+                                "error", err,
+                                "user_id", u.ID,
+                                "email", u.Email,
+                                "method", "UserService.PasswordMatches")
+                        return false, fmt.Errorf("Error comparing password for user ID %d: %v", u.ID, err)</span>
+                }
+        }
+
+        // Passwords match
+        <span class="cov8" title="1">slog.Info("password validation successful",
+                "user_id", u.ID,
+                "email", u.Email,
+                "method", "UserService.PasswordMatches")
+
+        return true, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file17" style="display: none">package env
+
+import (
+        "crypto/rand"
+        "encoding/base64"
+        "fmt"
+        "log/slog"
+        "os"
+        "strconv"
+        "strings"
+        "time"
+
+        "github.com/joho/godotenv"
+)
+
+type EnvConfig struct {
+        DBHost     string
+        DBPort     string
+        DBUser     string
+        DBPassword string
+        DBName     string
+        JWTSecret  string
+        JWTIssuer  string
+        AppPort    string
+        AppEnv     string
+
+        // PasswordResetBaseURL is the page reset links point at. Configuration is
+        // the only source: building it from a request header would allow reset-link
+        // poisoning.
+        PasswordResetBaseURL string
+
+        SMTPHost     string
+        SMTPPort     string
+        SMTPUsername string
+        SMTPPassword string
+        SMTPFrom     string
+}
+
+var Config *EnvConfig
+
+// LoadEnv reads the configuration into Config and returns it.
+//
+// It reports missing or unusable configuration as an error rather than exiting,
+// so the caller decides how to report the failure and the failure paths stay
+// testable.
+func LoadEnv() (*EnvConfig, error) <span class="cov8" title="1">{
+        // Load .env file dynamically based on APP_ENV
+        envFile := ".env"
+        if appEnv, exists := os.LookupEnv("APP_ENV"); exists </span><span class="cov8" title="1">{
+                envFile = fmt.Sprintf(".env.%s", appEnv)
+        }</span>
+        <span class="cov8" title="1">if err := godotenv.Load(envFile); err != nil </span><span class="cov8" title="1">{
+                slog.Info("No env file found, using system environment variables", "file", envFile)
+        }</span>
+
+        // Determine app environment
+        <span class="cov8" title="1">appEnv := getEnv("APP_ENV", "development")
+        isProduction := appEnv == "production"
+
+        // Load configuration based on environment
+        var (
+                dbHost     string
+                dbPort     string
+                dbUser     string
+                dbPassword string
+                dbName     string
+                jwtSecret  string
+
+                passwordResetBaseURL string
+                smtpHost             string
+                smtpPort             string
+                smtpUsername         string
+                smtpPassword         string
+                smtpFrom             string
+        )
+
+        if isProduction </span><span class="cov8" title="1">{
+                // Production: require critical variables
+                var required requiredEnv
+                dbHost = required.get("DB_HOST")
+                dbPassword = required.get("DB_PASSWORD")
+                dbName = required.get("DB_NAME")
+                jwtSecret = required.get("JWT_SECRET")
+                // Optional with defaults in production
+                dbPort = getEnv("DB_PORT", "5432")
+                dbUser = getEnv("DB_USER", "postgres")
+
+                // Password reset needs a real sender in production; the development
+                // file mailer would leave live reset links on disk.
+                passwordResetBaseURL = required.get("PASSWORD_RESET_BASE_URL")
+                smtpHost = required.get("SMTP_HOST")
+                smtpPort = getEnv("SMTP_PORT", "587")
+                smtpUsername = required.get("SMTP_USERNAME")
+                smtpPassword = required.get("SMTP_PASSWORD")
+                smtpFrom = required.get("SMTP_FROM")
+
+                if err := required.err(); err != nil </span><span class="cov8" title="1">{
+                        return nil, err
+                }</span>
+        } else<span class="cov8" title="1"> {
+                // Development: all optional with defaults, except JWT_SECRET (auto-generate if missing)
+                dbHost = getEnv("DB_HOST", "localhost")
+                dbPort = getEnv("DB_PORT", "5432")
+                dbUser = getEnv("DB_USER", "postgres")
+                dbPassword = getEnv("DB_PASSWORD", "")
+                dbName = getEnv("DB_NAME", "auth_db")
+
+                // Auto-generate random secret for development if not set
+                jwtSecret = getEnv("JWT_SECRET", "")
+                if jwtSecret == "" </span><span class="cov8" title="1">{
+                        secret, err := generateRandomSecret(32)
+                        if err != nil </span><span class="cov0" title="0">{
+                                return nil, fmt.Errorf("generating development JWT secret: %w", err)
+                        }</span>
+                        <span class="cov8" title="1">jwtSecret = secret
+                        slog.Info("Generated random JWT secret for development")</span>
+                }
+
+                <span class="cov8" title="1">passwordResetBaseURL = getEnv("PASSWORD_RESET_BASE_URL", "http://localhost:4200/reset-password")
+                smtpHost = getEnv("SMTP_HOST", "")
+                smtpPort = getEnv("SMTP_PORT", "587")
+                smtpUsername = getEnv("SMTP_USERNAME", "")
+                smtpPassword = getEnv("SMTP_PASSWORD", "")
+                smtpFrom = getEnv("SMTP_FROM", "no-reply@localhost")</span>
+        }
+
+        <span class="cov8" title="1">Config = &amp;EnvConfig{
+                DBHost:     dbHost,
+                DBPort:     dbPort,
+                DBUser:     dbUser,
+                DBPassword: dbPassword,
+                DBName:     dbName,
+                JWTSecret:  jwtSecret,
+                JWTIssuer:  getEnv("JWT_ISSUER", "eupneart-auth-service"),
+                AppPort:    getEnv("APP_PORT", "8080"),
+                AppEnv:     appEnv,
+
+                PasswordResetBaseURL: passwordResetBaseURL,
+                SMTPHost:             smtpHost,
+                SMTPPort:             smtpPort,
+                SMTPUsername:         smtpUsername,
+                SMTPPassword:         smtpPassword,
+                SMTPFrom:             smtpFrom,
+        }
+
+        return Config, nil</span>
+}
+
+func getEnv(key, defaultValue string) string <span class="cov8" title="1">{
+        if value, exists := os.LookupEnv(key); exists </span><span class="cov8" title="1">{
+                return value
+        }</span>
+        <span class="cov8" title="1">return defaultValue</span>
+}
+
+// requiredEnv collects the names of the required variables that are missing, so
+// that a misconfigured deployment is told about all of them at once instead of
+// one per restart.
+type requiredEnv struct {
+        missing []string
+}
+
+// get returns the value of a required environment variable, recording the key
+// as missing when it is unset or empty.
+func (r *requiredEnv) get(key string) string <span class="cov8" title="1">{
+        if value, exists := os.LookupEnv(key); exists &amp;&amp; value != "" </span><span class="cov8" title="1">{
+                return value
+        }</span>
+        <span class="cov8" title="1">r.missing = append(r.missing, key)
+        return ""</span>
+}
+
+// err reports every key recorded as missing, or nil when none were.
+func (r *requiredEnv) err() error <span class="cov8" title="1">{
+        if len(r.missing) == 0 </span><span class="cov8" title="1">{
+                return nil
+        }</span>
+        <span class="cov8" title="1">return fmt.Errorf("required environment variables not set: %s", strings.Join(r.missing, ", "))</span>
+}
+
+// generateRandomSecret generates a cryptographically secure random secret
+func generateRandomSecret(length int) (string, error) <span class="cov8" title="1">{
+        bytes := make([]byte, length)
+        if _, err := rand.Read(bytes); err != nil </span><span class="cov0" title="0">{
+                return "", err
+        }</span>
+        <span class="cov8" title="1">return base64.StdEncoding.EncodeToString(bytes), nil</span>
+}
+
+// GetEnvAsInt gets an environment variable as integer with fallback
+func GetEnvAsInt(key string, defaultValue int) int <span class="cov8" title="1">{
+        valueStr := getEnv(key, strconv.Itoa(defaultValue))
+        value, err := strconv.Atoi(valueStr)
+        if err != nil </span><span class="cov8" title="1">{
+                slog.Warn("Invalid integer for environment variable, using default",
+                        "key", key, "value", valueStr, "default", defaultValue)
+                return defaultValue
+        }</span>
+        <span class="cov8" title="1">return value</span>
+}
+
+// GetEnvAsDuration gets an environment variable as duration with fallback
+func GetEnvAsDuration(key, defaultValue string) time.Duration <span class="cov8" title="1">{
+        valueStr := getEnv(key, defaultValue)
+        duration, err := time.ParseDuration(valueStr)
+        if err != nil </span><span class="cov8" title="1">{
+                slog.Warn("Invalid duration for environment variable, using default",
+                        "key", key, "value", valueStr, "default", defaultValue)
+                duration, _ = time.ParseDuration(defaultValue)
+        }</span>
+        <span class="cov8" title="1">return duration</span>
+}
+
+// IsProduction returns true if running in production environment
+func IsProduction() bool <span class="cov8" title="1">{
+        return Config.AppEnv == "production"
+}</span>
+
+// IsDevelopment returns true if running in development environment
+func IsDevelopment() bool <span class="cov8" title="1">{
+        return Config.AppEnv == "development"
+}</span>
+
+func (c *EnvConfig) ToDSN() string <span class="cov0" title="0">{
+        return fmt.Sprintf(
+                "host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+                c.DBHost,
+                c.DBPort,
+                c.DBUser,
+                c.DBPassword,
+                c.DBName,
+        )
+}</span>
+</pre>
+		
+		<pre class="file" id="file18" style="display: none">// Package ratelimit provides a fixed-window request counter shared by the HTTP
+// middleware and the password-reset service.
+package ratelimit
+
+import (
+        "sync"
+        "time"
+)
+
+type counter struct {
+        count     int
+        windowEnd time.Time
+}
+
+// Limiter allows up to limit events per key within each window. State is
+// in-memory and per-process: a multi-instance deployment limits per instance,
+// so treat it as a brake on abuse rather than a hard quota.
+type Limiter struct {
+        mu        sync.Mutex
+        limit     int
+        window    time.Duration
+        counters  map[string]*counter
+        lastSweep time.Time
+}
+
+func New(limit int, window time.Duration) *Limiter <span class="cov8" title="1">{
+        return &amp;Limiter{
+                limit:     limit,
+                window:    window,
+                counters:  make(map[string]*counter),
+                lastSweep: time.Now(),
+        }
+}</span>
+
+// Allow reports whether the event is within the allowance for key, counting it
+// when it is. A limit of zero or less disables limiting.
+func (l *Limiter) Allow(key string) bool <span class="cov8" title="1">{
+        if l == nil || l.limit &lt;= 0 </span><span class="cov8" title="1">{
+                return true
+        }</span>
+
+        <span class="cov8" title="1">l.mu.Lock()
+        defer l.mu.Unlock()
+
+        now := time.Now()
+        l.sweep(now)
+
+        c, ok := l.counters[key]
+        if !ok || now.After(c.windowEnd) </span><span class="cov8" title="1">{
+                l.counters[key] = &amp;counter{count: 1, windowEnd: now.Add(l.window)}
+                return true
+        }</span>
+
+        <span class="cov8" title="1">if c.count &gt;= l.limit </span><span class="cov8" title="1">{
+                return false
+        }</span>
+
+        <span class="cov8" title="1">c.count++
+
+        return true</span>
+}
+
+// sweep drops expired counters. Without it the map would grow with every
+// distinct key seen, which an attacker controls by varying source addresses.
+// The caller must hold l.mu.
+func (l *Limiter) sweep(now time.Time) <span class="cov8" title="1">{
+        if now.Sub(l.lastSweep) &lt; l.window </span><span class="cov8" title="1">{
+                return
+        }</span>
+
+        <span class="cov8" title="1">for key, c := range l.counters </span><span class="cov8" title="1">{
+                if now.After(c.windowEnd) </span><span class="cov8" title="1">{
+                        delete(l.counters, key)
+                }</span>
+        }
+
+        <span class="cov8" title="1">l.lastSweep = now</span>
+}
+</pre>
+		
+		<pre class="file" id="file19" style="display: none">package integration
+
+import (
+        "bytes"
+        "encoding/json"
+        "net/http"
+        "net/http/httptest"
+        "testing"
+
+        "github.com/stretchr/testify/require"
+)
+
+// MakeRequest is a helper to make HTTP requests in tests
+func MakeRequest(t *testing.T, method, path string, body interface{}) *httptest.ResponseRecorder <span class="cov0" title="0">{
+        var requestBody []byte
+        if body != nil </span><span class="cov0" title="0">{
+                var err error
+                requestBody, err = json.Marshal(body)
+                require.NoError(t, err)
+        }</span>
+
+        <span class="cov0" title="0">req, err := http.NewRequest(method, path, bytes.NewReader(requestBody))
+        require.NoError(t, err)
+
+        req.Header.Set("Content-Type", "application/json")
+
+        w := httptest.NewRecorder()
+        return w</span>
+}
+
+// ParseResponse is a helper to parse JSON response
+func ParseResponse(t *testing.T, body []byte, v interface{}) <span class="cov0" title="0">{
+        err := json.Unmarshal(body, v)
+        require.NoError(t, err)
+}</span>
+
+// AssertStatusCode asserts the HTTP status code
+func AssertStatusCode(t *testing.T, resp *httptest.ResponseRecorder, expectedStatus int) <span class="cov0" title="0">{
+        require.Equal(t, expectedStatus, resp.Code, "expected status code %d but got %d", expectedStatus, resp.Code)
+}</span>
+
+// AssertResponseError asserts that response contains an error
+func AssertResponseError(t *testing.T, resp *httptest.ResponseRecorder) <span class="cov0" title="0">{
+        var data map[string]interface{}
+        ParseResponse(t, resp.Body.Bytes(), &amp;data)
+
+        hasError, ok := data["error"].(bool)
+        require.True(t, ok, "response should have 'error' field")
+        require.True(t, hasError, "response should indicate an error")
+}</span>
+
+// AssertResponseSuccess asserts that response is successful
+func AssertResponseSuccess(t *testing.T, resp *httptest.ResponseRecorder) <span class="cov0" title="0">{
+        var data map[string]interface{}
+        ParseResponse(t, resp.Body.Bytes(), &amp;data)
+
+        hasError, ok := data["error"].(bool)
+        require.True(t, ok, "response should have 'error' field")
+        require.False(t, hasError, "response should not indicate an error")
+}</span>
+</pre>
+		
+		<pre class="file" id="file20" style="display: none">package integration
+
+import (
+        "context"
+        "database/sql"
+        "testing"
+
+        _ "github.com/jackc/pgx/v4/stdlib"
+        "github.com/stretchr/testify/require"
+)
+
+// TestDB holds the test database connection
+type TestDB struct {
+        DB *sql.DB
+}
+
+// SetupTestDB initializes a test database connection
+func SetupTestDB(t *testing.T) *TestDB <span class="cov0" title="0">{
+        // This is a placeholder - in production, you would:
+        // 1. Connect to test database
+        // 2. Run migrations
+        // 3. Seed test data
+
+        t.Logf("Setting up test database")
+
+        // For now, return a placeholder
+        return &amp;TestDB{}
+}</span>
+
+// Cleanup closes the test database connection and cleans up
+func (tdb *TestDB) Cleanup(t *testing.T) <span class="cov0" title="0">{
+        if tdb.DB != nil </span><span class="cov0" title="0">{
+                err := tdb.DB.Close()
+                require.NoError(t, err)
+        }</span>
+}
+
+// SeedUser seeds a test user into the database
+func (tdb *TestDB) SeedUser(ctx context.Context, email, password string) (int64, error) <span class="cov0" title="0">{
+        // Placeholder for user seeding logic
+        return 1, nil
+}</span>
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>
