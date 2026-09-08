@@ -255,6 +255,143 @@ func TestUserService_PasswordMatches(t *testing.T) {
 	}
 }
 
+// ----------------------------------------------------------------------------
+// Repository error paths
+// ----------------------------------------------------------------------------
+
+// bcryptMaxInputPassword is longer than bcrypt's 72-byte input limit but still
+// within the 128 characters IsValidPassword accepts, so it reaches the hash call
+// and fails there.
+const bcryptMaxInputPassword = "Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!"
+
+func TestUserService_GetAll_RepoError(t *testing.T) {
+	mockRepo := new(MockUserRepo)
+	mockRepo.On("GetAll", mock.Anything).Return(([]*models.User)(nil), assert.AnError)
+
+	users, err := New(mockRepo).GetAll(context.Background())
+
+	assert.Error(t, err)
+	assert.Nil(t, users)
+}
+
+func TestUserService_GetByID_RepoError(t *testing.T) {
+	mockRepo := new(MockUserRepo)
+	mockRepo.On("GetByID", mock.Anything, int64(42)).Return((*models.User)(nil), assert.AnError)
+
+	user, err := New(mockRepo).GetByID(context.Background(), 42)
+
+	assert.Error(t, err)
+	assert.Nil(t, user)
+}
+
+// A repository that reports no error but no user must not be turned into a
+// non-nil user by the service.
+func TestUserService_GetByID_NilUser(t *testing.T) {
+	mockRepo := new(MockUserRepo)
+	mockRepo.On("GetByID", mock.Anything, int64(42)).Return((*models.User)(nil), nil)
+
+	user, err := New(mockRepo).GetByID(context.Background(), 42)
+
+	assert.NoError(t, err)
+	assert.Nil(t, user)
+}
+
+func TestUserService_GetByEmail_RepoError(t *testing.T) {
+	mockRepo := new(MockUserRepo)
+	mockRepo.On("GetByEmail", mock.Anything, "user@example.com").
+		Return((*models.User)(nil), assert.AnError)
+
+	user, err := New(mockRepo).GetByEmail(context.Background(), "user@example.com")
+
+	assert.Error(t, err)
+	assert.Nil(t, user)
+}
+
+func TestUserService_Update_RepoError(t *testing.T) {
+	mockRepo := new(MockUserRepo)
+	mockRepo.On("Update", mock.Anything, mock.AnythingOfType("models.User")).Return(assert.AnError)
+
+	err := New(mockRepo).Update(context.Background(), models.User{
+		ID: 42, Email: "user@example.com", FirstName: "John", LastName: "Doe",
+	})
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to update user")
+}
+
+func TestUserService_DeleteByID_RepoError(t *testing.T) {
+	mockRepo := new(MockUserRepo)
+	mockRepo.On("DeleteByID", mock.Anything, int64(42)).Return(assert.AnError)
+
+	assert.Error(t, New(mockRepo).DeleteByID(context.Background(), 42))
+}
+
+func TestUserService_Insert_RepoError(t *testing.T) {
+	mockRepo := new(MockUserRepo)
+	mockRepo.On("Insert", mock.Anything, mock.AnythingOfType("models.User")).
+		Return(int64(0), assert.AnError)
+
+	id, err := New(mockRepo).Insert(context.Background(), models.User{
+		Email: "user@example.com", Password: "NewPassw0rd!",
+	})
+
+	assert.Error(t, err)
+	assert.Zero(t, id)
+}
+
+func TestUserService_Insert_PasswordTooLongToHash(t *testing.T) {
+	mockRepo := new(MockUserRepo)
+
+	id, err := New(mockRepo).Insert(context.Background(), models.User{
+		Email: "user@example.com", Password: bcryptMaxInputPassword,
+	})
+
+	assert.Error(t, err)
+	assert.Zero(t, id)
+	assert.Contains(t, err.Error(), "encrypting password")
+	mockRepo.AssertNotCalled(t, "Insert", mock.Anything, mock.Anything)
+}
+
+func TestUserService_ResetPassword_NilUser(t *testing.T) {
+	err := New(new(MockUserRepo)).ResetPassword(context.Background(), nil)
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "user cannot be nil")
+}
+
+func TestUserService_ResetPassword_RepoError(t *testing.T) {
+	mockRepo := new(MockUserRepo)
+	mockRepo.On("UpdatePassword", mock.Anything, int64(42), mock.Anything).Return(assert.AnError)
+
+	err := New(mockRepo).ResetPassword(context.Background(), &models.User{
+		ID: 42, Password: "NewPassw0rd!",
+	})
+
+	assert.Error(t, err)
+}
+
+func TestUserService_ResetPassword_PasswordTooLongToHash(t *testing.T) {
+	mockRepo := new(MockUserRepo)
+
+	err := New(mockRepo).ResetPassword(context.Background(), &models.User{
+		ID: 42, Password: bcryptMaxInputPassword,
+	})
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to hash password")
+	mockRepo.AssertNotCalled(t, "UpdatePassword", mock.Anything, mock.Anything, mock.Anything)
+}
+
+// A stored value that is not a bcrypt hash is an error, not a mismatch: it must
+// not be reported as a plain wrong password.
+func TestUserService_PasswordMatches_MalformedHash(t *testing.T) {
+	matches, err := New(new(MockUserRepo)).PasswordMatches(
+		&models.User{ID: 42, Password: "not-a-bcrypt-hash"}, "NewPassw0rd!")
+
+	assert.Error(t, err)
+	assert.False(t, matches)
+}
+
 // MockUserRepo is a mock implementation of the UserRepoInterface
 type MockUserRepo struct {
 	mock.Mock
