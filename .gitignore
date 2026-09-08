@@ -39,6 +39,7 @@ Thumbs.db
 
 # Coverage data files
 coverage.out
+coverage.html
 
 # env files
 .env
