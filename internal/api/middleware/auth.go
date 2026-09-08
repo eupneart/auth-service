@@ -25,18 +25,18 @@ func Auth(tokenService services.TokenService) func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			authHeader := r.Header.Get("Authorization")
 			if strings.TrimSpace(authHeader) == "" {
-				slog.Warn("missing authorization header", "remote_addr", r.RemoteAddr)
+				slog.WarnContext(r.Context(), "missing authorization header", "remote_addr", r.RemoteAddr)
 				http.Error(w, "missing authorization header", http.StatusUnauthorized)
 				return
 			}
 			parts := strings.Fields(authHeader)
 			if len(parts) != 2 || parts[0] != models.DefaultTokenType || parts[1] == "" {
-				slog.Warn("invalid authorization header", "remote_addr", r.RemoteAddr)
+				slog.WarnContext(r.Context(), "invalid authorization header", "remote_addr", r.RemoteAddr)
 				http.Error(w, "invalid authorization format", http.StatusUnauthorized)
 				return
 			}
 			if tokenService == nil {
-				slog.Error("token service is not configured")
+				slog.ErrorContext(r.Context(), "token service is not configured")
 				http.Error(w, "authentication unavailable", http.StatusInternalServerError)
 				return
 			}
@@ -44,12 +44,12 @@ func Auth(tokenService services.TokenService) func(http.Handler) http.Handler {
 			token := parts[1]
 			claims, err := tokenService.ValidateToken(r.Context(), token)
 			if err != nil || claims == nil {
-				slog.Warn("token validation failed", "error", err, "remote_addr", r.RemoteAddr)
+				slog.WarnContext(r.Context(), "token validation failed", "error", err, "remote_addr", r.RemoteAddr)
 				http.Error(w, "invalid token", http.StatusUnauthorized)
 				return
 			}
 			if claims.TokenType != models.TokenTypeAccess {
-				slog.Warn("non-access token used for protected route",
+				slog.WarnContext(r.Context(), "non-access token used for protected route",
 					"token_type", claims.TokenType,
 					"user_id", claims.UserID,
 					"remote_addr", r.RemoteAddr)

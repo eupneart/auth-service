@@ -39,14 +39,14 @@ func (r *PasswordResetTokenRepo) CreatePasswordResetToken(ctx context.Context, t
 		token.ExpiresAt,
 	).Scan(&token.ID, &token.CreatedAt)
 	if err != nil {
-		slog.Error("failed to create password reset token",
+		slog.ErrorContext(ctx, "failed to create password reset token",
 			"error", err,
 			"user_id", token.UserID,
 			"method", "PasswordResetTokenRepo.CreatePasswordResetToken")
 		return fmt.Errorf("creating password reset token: %w", err)
 	}
 
-	slog.Debug("created password reset token",
+	slog.DebugContext(ctx, "created password reset token",
 		"user_id", token.UserID,
 		"token_id", token.ID)
 
@@ -65,17 +65,17 @@ func (r *PasswordResetTokenRepo) ConsumePasswordResetToken(ctx context.Context, 
 	token, err := scanPasswordResetToken(r.DB.QueryRowContext(ctx, stmt, now, tokenHash))
 	if err != nil {
 		if err == sql.ErrNoRows {
-			slog.Warn("password reset token invalid, expired, or already used",
+			slog.WarnContext(ctx, "password reset token invalid, expired, or already used",
 				"method", "PasswordResetTokenRepo.ConsumePasswordResetToken")
 			return nil, ErrResetTokenNotFound
 		}
-		slog.Error("failed to consume password reset token",
+		slog.ErrorContext(ctx, "failed to consume password reset token",
 			"error", err,
 			"method", "PasswordResetTokenRepo.ConsumePasswordResetToken")
 		return nil, fmt.Errorf("consuming password reset token: %w", err)
 	}
 
-	slog.Info("consumed password reset token",
+	slog.InfoContext(ctx, "consumed password reset token",
 		"user_id", token.UserID,
 		"token_id", token.ID)
 
@@ -88,7 +88,7 @@ func (r *PasswordResetTokenRepo) InvalidatePasswordResetTokensForUser(ctx contex
 
 	result, err := r.DB.ExecContext(ctx, stmt, time.Now(), userID)
 	if err != nil {
-		slog.Error("failed to invalidate password reset tokens for user",
+		slog.ErrorContext(ctx, "failed to invalidate password reset tokens for user",
 			"error", err,
 			"user_id", userID,
 			"method", "PasswordResetTokenRepo.InvalidatePasswordResetTokensForUser")
@@ -96,7 +96,7 @@ func (r *PasswordResetTokenRepo) InvalidatePasswordResetTokensForUser(ctx contex
 	}
 
 	rowsAffected, _ := result.RowsAffected()
-	slog.Info("invalidated password reset tokens for user",
+	slog.InfoContext(ctx, "invalidated password reset tokens for user",
 		"user_id", userID,
 		"tokens_invalidated", rowsAffected)
 

@@ -20,7 +20,7 @@ func RateLimit(limiter *ratelimit.Limiter) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !limiter.Allow(clientKey(r)) {
-				slog.Warn("rate limit exceeded",
+				slog.WarnContext(r.Context(), "rate limit exceeded",
 					"path", r.URL.Path,
 					"remote_addr", r.RemoteAddr)
 				http.Error(w, "too many requests", http.StatusTooManyRequests)

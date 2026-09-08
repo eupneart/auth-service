@@ -37,7 +37,7 @@ func NewTokenService(config TokenServiceConfig, userRepo repositories.UserRepoIn
 }
 
 func (s *tokenService) GenerateTokens(ctx context.Context, user *models.User) (accessToken, refreshToken string, err error) {
-	s.logger.Info("Generating tokens for user",
+	s.logger.InfoContext(ctx, "Generating tokens for user",
 		slog.Int64("user_id", user.ID),
 		slog.String("email", user.Email))
 
@@ -81,7 +81,7 @@ func (s *tokenService) GenerateTokens(ctx context.Context, user *models.User) (a
 	accessTokenJWT := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
 	accessToken, err = accessTokenJWT.SignedString([]byte(s.config.JWTSecret))
 	if err != nil {
-		s.logger.Error("Failed to generate access token",
+		s.logger.ErrorContext(ctx, "Failed to generate access token",
 			slog.Int64("user_id", user.ID),
 			slog.String("error", err.Error()))
 		return "", "", fmt.Errorf("failed to generate access token: %w", err)
@@ -91,7 +91,7 @@ func (s *tokenService) GenerateTokens(ctx context.Context, user *models.User) (a
 	refreshTokenJWT := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims)
 	refreshToken, err = refreshTokenJWT.SignedString([]byte(s.config.JWTSecret))
 	if err != nil {
-		s.logger.Error("Failed to generate refresh token",
+		s.logger.ErrorContext(ctx, "Failed to generate refresh token",
 			slog.Int64("user_id", user.ID),
 			slog.String("error", err.Error()))
 		return "", "", fmt.Errorf("failed to generate refresh token: %w", err)
@@ -118,7 +118,7 @@ func (s *tokenService) GenerateTokens(ctx context.Context, user *models.User) (a
 
 	// Store both tokens metadata
 	if err := s.store.SaveTokenMetadata(ctx, accessMetadata); err != nil {
-		s.logger.Error("Failed to store access token metadata",
+		s.logger.ErrorContext(ctx, "Failed to store access token metadata",
 			slog.Int64("user_id", user.ID),
 			slog.String("token_id", accessTokenID),
 			slog.String("error", err.Error()))
@@ -126,14 +126,14 @@ func (s *tokenService) GenerateTokens(ctx context.Context, user *models.User) (a
 	}
 
 	if err := s.store.SaveTokenMetadata(ctx, refreshMetadata); err != nil {
-		s.logger.Error("Failed to store refresh token metadata",
+		s.logger.ErrorContext(ctx, "Failed to store refresh token metadata",
 			slog.Int64("user_id", user.ID),
 			slog.String("token_id", refreshTokenID),
 			slog.String("error", err.Error()))
 		return "", "", fmt.Errorf("failed to store refresh token metadata: %w", err)
 	}
 
-	s.logger.Info("Successfully generated tokens",
+	s.logger.InfoContext(ctx, "Successfully generated tokens",
 		slog.Int64("user_id", user.ID),
 		slog.String("access_token_id", accessTokenID),
 		slog.String("refresh_token_id", refreshTokenID))
@@ -152,26 +152,26 @@ func (s *tokenService) ValidateToken(ctx context.Context, tokenStr string) (*mod
 		return []byte(s.config.JWTSecret), nil
 	})
 	if err != nil {
-		s.logger.Warn("Failed to parse token", slog.String("error", err.Error()))
+		s.logger.WarnContext(ctx, "Failed to parse token", slog.String("error", err.Error()))
 		return nil, fmt.Errorf("failed to parse token: %w", err)
 	}
 
 	claims, ok := token.Claims.(*models.Claims)
 	if !ok || !token.Valid {
-		s.logger.Warn("Invalid token claims or token not valid")
+		s.logger.WarnContext(ctx, "Invalid token claims or token not valid")
 		return nil, ErrInvalidToken
 	}
 
 	// Check if token is revoked
 	revoked, err := s.store.IsTokenRevoked(ctx, claims.ID)
 	if err != nil {
-		s.logger.Error("Failed to check token revocation status",
+		s.logger.ErrorContext(ctx, "Failed to check token revocation status",
 			slog.String("token_id", claims.ID),
 			slog.String("error", err.Error()))
 		return nil, fmt.Errorf("failed to check token revocation status: %w", err)
 	}
 	if revoked {
-		s.logger.Warn("Attempted to use revoked token",
+		s.logger.WarnContext(ctx, "Attempted to use revoked token",
 			slog.String("token_id", claims.ID),
 			slog.Int64("user_id", claims.UserID))
 		return nil, ErrTokenRevoked
@@ -179,13 +179,13 @@ func (s *tokenService) ValidateToken(ctx context.Context, tokenStr string) (*mod
 
 	// Update last used timestamp
 	if err := s.store.UpdateLastUsed(ctx, claims.ID); err != nil {
-		s.logger.Error("Failed to update token last used timestamp",
+		s.logger.ErrorContext(ctx, "Failed to update token last used timestamp",
 			slog.String("token_id", claims.ID),
 			slog.String("error", err.Error()))
 		// Don't fail the validation for this error
 	}
 
-	s.logger.Debug("Token validated successfully",
+	s.logger.DebugContext(ctx, "Token validated successfully",
 		slog.String("token_id", claims.ID),
 		slog.Int64("user_id", claims.UserID),
 		slog.String("token_type", claims.TokenType))
@@ -195,18 +195,18 @@ func (s *tokenService) ValidateToken(ctx context.Context, tokenStr string) (*mod
 
 // RefreshAccessToken generates a new access token using a refresh token
 func (s *tokenService) RefreshAccessToken(ctx context.Context, refreshToken string) (accessToken string, err error) {
-	s.logger.Info("Refreshing access token")
+	s.logger.InfoContext(ctx, "Refreshing access token")
 
 	// Validate refresh token
 	claims, err := s.ValidateToken(ctx, refreshToken)
 	if err != nil {
-		s.logger.Warn("Invalid refresh token provided", slog.String("error", err.Error()))
+		s.logger.WarnContext(ctx, "Invalid refresh token provided", slog.String("error", err.Error()))
 		return "", fmt.Errorf("invalid refresh token: %w", err)
 	}
 
 	// Check if it's actually a refresh token
 	if claims.TokenType != models.TokenTypeRefresh {
-		s.logger.Warn("Attempted to refresh with non-refresh token",
+		s.logger.WarnContext(ctx, "Attempted to refresh with non-refresh token",
 			slog.String("token_type", claims.TokenType),
 			slog.Int64("user_id", claims.UserID))
 		return "", ErrInvalidTokenType
@@ -215,7 +215,7 @@ func (s *tokenService) RefreshAccessToken(ctx context.Context, refreshToken stri
 	// Get user to fetch latest roles and information
 	user, err := s.userRepo.GetByID(ctx, claims.UserID)
 	if err != nil {
-		s.logger.Error("Failed to get user for token refresh",
+		s.logger.ErrorContext(ctx, "Failed to get user for token refresh",
 			slog.Int64("user_id", claims.UserID),
 			slog.String("error", err.Error()))
 		return "", fmt.Errorf("failed to get user: %w", err)
@@ -243,7 +243,7 @@ func (s *tokenService) RefreshAccessToken(ctx context.Context, refreshToken stri
 	accessTokenJWT := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
 	accessToken, err = accessTokenJWT.SignedString([]byte(s.config.JWTSecret))
 	if err != nil {
-		s.logger.Error("Failed to generate new access token",
+		s.logger.ErrorContext(ctx, "Failed to generate new access token",
 			slog.Int64("user_id", user.ID),
 			slog.String("error", err.Error()))
 		return "", fmt.Errorf("failed to generate access token: %w", err)
@@ -260,14 +260,14 @@ func (s *tokenService) RefreshAccessToken(ctx context.Context, refreshToken stri
 	}
 
 	if err := s.store.SaveTokenMetadata(ctx, accessMetadata); err != nil {
-		s.logger.Error("Failed to store new access token metadata",
+		s.logger.ErrorContext(ctx, "Failed to store new access token metadata",
 			slog.String("token_id", accessTokenID),
 			slog.Int64("user_id", user.ID),
 			slog.String("error", err.Error()))
 		return "", fmt.Errorf("failed to store access token metadata: %w", err)
 	}
 
-	s.logger.Info("Successfully refreshed access token",
+	s.logger.InfoContext(ctx, "Successfully refreshed access token",
 		slog.Int64("user_id", user.ID),
 		slog.String("new_token_id", accessTokenID),
 		slog.String("refresh_token_id", claims.ID))
@@ -280,24 +280,24 @@ func (s *tokenService) RevokeToken(ctx context.Context, tokenStr string) error {
 	// Parse token to get ID
 	claims, err := s.parseTokenWithoutValidation(tokenStr)
 	if err != nil {
-		s.logger.Error("Failed to parse token for revocation", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "Failed to parse token for revocation", slog.String("error", err.Error()))
 		return fmt.Errorf("failed to parse token for revocation: %w", err)
 	}
 
-	s.logger.Info("Revoking token",
+	s.logger.InfoContext(ctx, "Revoking token",
 		slog.String("token_id", claims.ID),
 		slog.Int64("user_id", claims.UserID),
 		slog.String("token_type", claims.TokenType))
 
 	// Revoke token in store
 	if err := s.store.RevokeToken(ctx, claims.ID); err != nil {
-		s.logger.Error("Failed to revoke token",
+		s.logger.ErrorContext(ctx, "Failed to revoke token",
 			slog.String("token_id", claims.ID),
 			slog.String("error", err.Error()))
 		return err
 	}
 
-	s.logger.Info("Successfully revoked token",
+	s.logger.InfoContext(ctx, "Successfully revoked token",
 		slog.String("token_id", claims.ID),
 		slog.Int64("user_id", claims.UserID))
 
@@ -308,7 +308,7 @@ func (s *tokenService) RevokeToken(ctx context.Context, tokenStr string) error {
 func (s *tokenService) GetTokenMetadata(ctx context.Context, tokenID string) (*models.TokenMetadata, error) {
 	metadata, err := s.store.GetTokenMetadata(ctx, tokenID)
 	if err != nil {
-		s.logger.Error("Failed to get token metadata",
+		s.logger.ErrorContext(ctx, "Failed to get token metadata",
 			slog.String("token_id", tokenID),
 			slog.String("error", err.Error()))
 		return nil, err
@@ -320,7 +320,7 @@ func (s *tokenService) GetTokenMetadata(ctx context.Context, tokenID string) (*m
 func (s *tokenService) IsTokenRevoked(ctx context.Context, tokenID string) (bool, error) {
 	revoked, err := s.store.IsTokenRevoked(ctx, tokenID)
 	if err != nil {
-		s.logger.Error("Failed to check if token is revoked",
+		s.logger.ErrorContext(ctx, "Failed to check if token is revoked",
 			slog.String("token_id", tokenID),
 			slog.String("error", err.Error()))
 		return false, err
@@ -330,31 +330,31 @@ func (s *tokenService) IsTokenRevoked(ctx context.Context, tokenID string) (bool
 
 // RevokeAllTokensForUser invalidates all tokens for a specific user
 func (s *tokenService) RevokeAllTokensForUser(ctx context.Context, userID int64) error {
-	s.logger.Info("Revoking all tokens for user", slog.Int64("user_id", userID))
+	s.logger.InfoContext(ctx, "Revoking all tokens for user", slog.Int64("user_id", userID))
 
 	err := s.store.RevokeAllTokensForUser(ctx, userID)
 	if err != nil {
-		s.logger.Error("Failed to revoke all tokens for user",
+		s.logger.ErrorContext(ctx, "Failed to revoke all tokens for user",
 			slog.Int64("user_id", userID),
 			slog.String("error", err.Error()))
 		return err
 	}
 
-	s.logger.Info("Successfully revoked all tokens for user", slog.Int64("user_id", userID))
+	s.logger.InfoContext(ctx, "Successfully revoked all tokens for user", slog.Int64("user_id", userID))
 	return nil
 }
 
 // CleanupExpiredTokens removes expired tokens from storage
 func (s *tokenService) CleanupExpiredTokens(ctx context.Context) error {
-	s.logger.Info("Starting cleanup of expired tokens")
+	s.logger.InfoContext(ctx, "Starting cleanup of expired tokens")
 
 	err := s.store.CleanupExpiredTokens(ctx)
 	if err != nil {
-		s.logger.Error("Failed to cleanup expired tokens", slog.String("error", err.Error()))
+		s.logger.ErrorContext(ctx, "Failed to cleanup expired tokens", slog.String("error", err.Error()))
 		return err
 	}
 
-	s.logger.Info("Successfully cleaned up expired tokens")
+	s.logger.InfoContext(ctx, "Successfully cleaned up expired tokens")
 	return nil
 }
 

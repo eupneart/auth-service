@@ -13,17 +13,21 @@ import (
 func (s *Server) Routes() http.Handler {
 	mux := chi.NewRouter()
 
+	// First in the chain so nothing downstream logs without a correlation id.
+	mux.Use(authmiddleware.CorrelationID)
+
 	// specify who is allowed to connect (cors policy)
 	mux.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"https://eupneart.com", "http://localhost:4200", "http://localhost:8080"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-		ExposedHeaders:   []string{"Link"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", authmiddleware.CorrelationIDHeader},
+		ExposedHeaders:   []string{"Link", authmiddleware.CorrelationIDHeader},
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))
 
 	mux.Use(chimiddleware.Heartbeat("/ping"))
+	mux.Use(authmiddleware.Logging)
 
 	// create auth handler with both UserService and TokenService
 	authHandler := handlers.NewAuthHandler(s.UserService, s.TokenService, s.PasswordResetService)

@@ -85,14 +85,14 @@ func (s *PasswordResetService) RequestReset(ctx context.Context, email string) e
 
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
-		slog.Error("failed to look up user for password reset",
+		slog.ErrorContext(ctx, "failed to look up user for password reset",
 			"error", err,
 			"method", "PasswordResetService.RequestReset")
 		return fmt.Errorf("looking up user: %w", err)
 	}
 
 	if user == nil || !user.IsActive {
-		slog.Info("password reset requested for unknown or inactive account",
+		slog.InfoContext(ctx, "password reset requested for unknown or inactive account",
 			"method", "PasswordResetService.RequestReset")
 		return nil
 	}
@@ -100,7 +100,7 @@ func (s *PasswordResetService) RequestReset(ctx context.Context, email string) e
 	// Checked only once the account is known to exist, so the limiter's key
 	// space stays bounded by real accounts rather than by attacker input.
 	if !s.emailLimiter.Allow(user.Email) {
-		slog.Warn("password reset requests throttled for account",
+		slog.WarnContext(ctx, "password reset requests throttled for account",
 			"user_id", user.ID,
 			"method", "PasswordResetService.RequestReset")
 		return nil
@@ -121,14 +121,14 @@ func (s *PasswordResetService) RequestReset(ctx context.Context, email string) e
 	}
 
 	if err := s.mailer.SendPasswordReset(ctx, user.Email, s.resetURL(rawToken)); err != nil {
-		slog.Error("failed to send password reset email",
+		slog.ErrorContext(ctx, "failed to send password reset email",
 			"error", err,
 			"user_id", user.ID,
 			"method", "PasswordResetService.RequestReset")
 		return fmt.Errorf("sending reset link: %w", err)
 	}
 
-	slog.Info("password reset link sent",
+	slog.InfoContext(ctx, "password reset link sent",
 		"user_id", user.ID,
 		"method", "PasswordResetService.RequestReset")
 
@@ -208,7 +208,7 @@ func (s *PasswordResetService) applyNewPassword(ctx context.Context, userID int6
 		return fmt.Errorf("updating password: %w", err)
 	}
 
-	slog.Info("password changed and sessions revoked",
+	slog.InfoContext(ctx, "password changed and sessions revoked",
 		"user_id", userID,
 		"method", "PasswordResetService.applyNewPassword")
 

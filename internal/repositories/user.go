@@ -30,7 +30,7 @@ func (r *UserRepo) GetAll(ctx context.Context) ([]*models.User, error) {
 	// Execute query
 	rows, err := r.DB.QueryContext(ctx, query)
 	if err != nil {
-		slog.Error("failed to query all users",
+		slog.ErrorContext(ctx, "failed to query all users",
 			"error", err,
 			"query", query,
 			"method", "UserRepo.GetAll")
@@ -38,7 +38,7 @@ func (r *UserRepo) GetAll(ctx context.Context) ([]*models.User, error) {
 	}
 	defer rows.Close()
 
-	return scanUsers(rows)
+	return scanUsers(ctx, rows)
 }
 
 // GetById returns one user by id
@@ -47,9 +47,9 @@ func (r *UserRepo) GetByID(ctx context.Context, id int64) (*models.User, error) 
 
 	row := r.DB.QueryRowContext(ctx, query, id)
 
-	usr, err := scanUser(row)
+	usr, err := scanUser(ctx, row)
 	if err != nil {
-		slog.Error("failed to query user by id",
+		slog.ErrorContext(ctx, "failed to query user by id",
 			"error", err,
 			"query", query,
 			"id", id,
@@ -66,9 +66,9 @@ func (r *UserRepo) GetByEmail(ctx context.Context, email string) (*models.User, 
 
 	row := r.DB.QueryRowContext(ctx, query, email)
 
-	usr, err := scanUser(row)
+	usr, err := scanUser(ctx, row)
 	if err != nil {
-		slog.Error("failed to query user by email",
+		slog.ErrorContext(ctx, "failed to query user by email",
 			"error", err,
 			"query", query,
 			"email", email,
@@ -123,7 +123,7 @@ func (r *UserRepo) Update(ctx context.Context, u models.User) error {
 	// Execute the query
 	_, err := r.DB.ExecContext(ctx, query, args...)
 	if err != nil {
-		slog.Error("failed to update user",
+		slog.ErrorContext(ctx, "failed to update user",
 			"error", err,
 			"query", query,
 			"user_id", u.ID,
@@ -142,7 +142,7 @@ func (r *UserRepo) UpdatePassword(ctx context.Context, userID int64, hashedPassw
 
 	result, err := r.DB.ExecContext(ctx, stmt, hashedPassword, time.Now(), userID)
 	if err != nil {
-		slog.Error("failed to update user password",
+		slog.ErrorContext(ctx, "failed to update user password",
 			"error", err,
 			"query", stmt,
 			"user_id", userID,
@@ -152,7 +152,7 @@ func (r *UserRepo) UpdatePassword(ctx context.Context, userID int64, hashedPassw
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		slog.Error("failed to get rows affected after password update",
+		slog.ErrorContext(ctx, "failed to get rows affected after password update",
 			"error", err,
 			"user_id", userID,
 			"method", "UserRepo.UpdatePassword")
@@ -171,7 +171,7 @@ func (r *UserRepo) DeleteByID(ctx context.Context, id int64) error {
 
 	_, err := r.DB.ExecContext(ctx, stmt, id)
 	if err != nil {
-		slog.Error("failed to delete user by id",
+		slog.ErrorContext(ctx, "failed to delete user by id",
 			"error", err,
 			"query", stmt,
 			"id", id,
@@ -202,7 +202,7 @@ func (r *UserRepo) Insert(ctx context.Context, u models.User) (int64, error) {
 		time.Now(),
 	).Scan(&newId)
 	if err != nil {
-		slog.Error("failed to insert user",
+		slog.ErrorContext(ctx, "failed to insert user",
 			"error", err,
 			"query", stmt,
 			"email", u.Email,
@@ -215,7 +215,7 @@ func (r *UserRepo) Insert(ctx context.Context, u models.User) (int64, error) {
 
 // ========================= Helper functions ============================
 // scanUsers is a helper function to scan multiple rows into a slice of User structs.
-func scanUsers(rows *sql.Rows) ([]*models.User, error) {
+func scanUsers(ctx context.Context, rows *sql.Rows) ([]*models.User, error) {
 	var users []*models.User
 	for rows.Next() {
 		var usr models.User
@@ -232,7 +232,7 @@ func scanUsers(rows *sql.Rows) ([]*models.User, error) {
 			&usr.UpdatedAt,
 			&usr.LastLogin,
 		); err != nil {
-			slog.Error("failed to scan user row",
+			slog.ErrorContext(ctx, "failed to scan user row",
 				"error", err,
 				"method", "scanUsers")
 			return nil, err
@@ -243,7 +243,7 @@ func scanUsers(rows *sql.Rows) ([]*models.User, error) {
 
 	// Check if there was any error while iterating through the rows
 	if err := rows.Err(); err != nil {
-		slog.Error("error iterating through user rows",
+		slog.ErrorContext(ctx, "error iterating through user rows",
 			"error", err,
 			"method", "scanUsers")
 		return nil, fmt.Errorf("scanning users: %w", err)
@@ -253,7 +253,7 @@ func scanUsers(rows *sql.Rows) ([]*models.User, error) {
 }
 
 // scanUser is a helper function to scan a single row into a User struct.
-func scanUser(row *sql.Row) (*models.User, error) {
+func scanUser(ctx context.Context, row *sql.Row) (*models.User, error) {
 	var usr models.User
 	err := row.Scan(
 		&usr.ID,
@@ -268,7 +268,7 @@ func scanUser(row *sql.Row) (*models.User, error) {
 		&usr.LastLogin,
 	)
 	if err != nil {
-		slog.Error("failed to scan user",
+		slog.ErrorContext(ctx, "failed to scan user",
 			"error", err,
 			"method", "scanUser")
 		return nil, err

@@ -33,7 +33,7 @@ func Logging(next http.Handler) http.Handler {
 		rw := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 
 		// Log request
-		slog.Debug("incoming request",
+		slog.DebugContext(r.Context(), "incoming request",
 			"method", r.Method,
 			"path", r.RequestURI,
 			"remote_addr", r.RemoteAddr,

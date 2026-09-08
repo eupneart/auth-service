@@ -40,7 +40,7 @@ func (r *TokenRepo) SaveTokenMetadata(ctx context.Context, metadata *models.Toke
 		metadata.LastUsedAt,
 	)
 	if err != nil {
-		slog.Error("failed to save token metadata",
+		slog.ErrorContext(ctx, "failed to save token metadata",
 			"error", err,
 			"query", stmt,
 			"token_id", metadata.ID,
@@ -49,7 +49,7 @@ func (r *TokenRepo) SaveTokenMetadata(ctx context.Context, metadata *models.Toke
 		return fmt.Errorf("saving token metadata: %w", err)
 	}
 
-	slog.Debug("successfully saved token metadata",
+	slog.DebugContext(ctx, "successfully saved token metadata",
 		"token_id", metadata.ID,
 		"user_id", metadata.UserID,
 		"token_type", metadata.TokenType)
@@ -66,12 +66,12 @@ func (r *TokenRepo) GetTokenMetadata(ctx context.Context, tokenID string) (*mode
 	metadata, err := scanTokenMetadata(row)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			slog.Warn("token metadata not found",
+			slog.WarnContext(ctx, "token metadata not found",
 				"token_id", tokenID,
 				"method", "TokenRepo.GetTokenMetadata")
 			return nil, fmt.Errorf("token not found")
 		}
-		slog.Error("failed to query token metadata",
+		slog.ErrorContext(ctx, "failed to query token metadata",
 			"error", err,
 			"query", query,
 			"token_id", tokenID,
@@ -79,7 +79,7 @@ func (r *TokenRepo) GetTokenMetadata(ctx context.Context, tokenID string) (*mode
 		return nil, fmt.Errorf("querying token metadata: %w", err)
 	}
 
-	slog.Debug("successfully retrieved token metadata",
+	slog.DebugContext(ctx, "successfully retrieved token metadata",
 		"token_id", tokenID,
 		"user_id", metadata.UserID)
 
@@ -95,12 +95,12 @@ func (r *TokenRepo) IsTokenRevoked(ctx context.Context, tokenID string) (bool, e
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// If token doesn't exist, consider it as revoked/invalid
-			slog.Warn("token not found when checking revocation status",
+			slog.WarnContext(ctx, "token not found when checking revocation status",
 				"token_id", tokenID,
 				"method", "TokenRepo.IsTokenRevoked")
 			return true, nil
 		}
-		slog.Error("failed to check token revocation status",
+		slog.ErrorContext(ctx, "failed to check token revocation status",
 			"error", err,
 			"query", query,
 			"token_id", tokenID,
@@ -108,7 +108,7 @@ func (r *TokenRepo) IsTokenRevoked(ctx context.Context, tokenID string) (bool, e
 		return false, fmt.Errorf("checking token revocation status: %w", err)
 	}
 
-	slog.Debug("token revocation status checked",
+	slog.DebugContext(ctx, "token revocation status checked",
 		"token_id", tokenID,
 		"is_revoked", isRevoked)
 
@@ -121,7 +121,7 @@ func (r *TokenRepo) RevokeToken(ctx context.Context, tokenID string) error {
 
 	result, err := r.DB.ExecContext(ctx, stmt, tokenID)
 	if err != nil {
-		slog.Error("failed to revoke token",
+		slog.ErrorContext(ctx, "failed to revoke token",
 			"error", err,
 			"query", stmt,
 			"token_id", tokenID,
@@ -131,7 +131,7 @@ func (r *TokenRepo) RevokeToken(ctx context.Context, tokenID string) error {
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		slog.Error("failed to get rows affected after token revocation",
+		slog.ErrorContext(ctx, "failed to get rows affected after token revocation",
 			"error", err,
 			"token_id", tokenID,
 			"method", "TokenRepo.RevokeToken")
@@ -139,13 +139,13 @@ func (r *TokenRepo) RevokeToken(ctx context.Context, tokenID string) error {
 	}
 
 	if rowsAffected == 0 {
-		slog.Warn("no token found to revoke",
+		slog.WarnContext(ctx, "no token found to revoke",
 			"token_id", tokenID,
 			"method", "TokenRepo.RevokeToken")
 		return fmt.Errorf("token not found")
 	}
 
-	slog.Info("successfully revoked token",
+	slog.InfoContext(ctx, "successfully revoked token",
 		"token_id", tokenID)
 
 	return nil
@@ -162,7 +162,7 @@ func (r *TokenRepo) RevokeAllTokensForUser(ctx context.Context, userID int64) er
 
 	result, err := r.DB.ExecContext(ctx, stmt, userID)
 	if err != nil {
-		slog.Error("failed to revoke all tokens for user",
+		slog.ErrorContext(ctx, "failed to revoke all tokens for user",
 			"error", err,
 			"query", stmt,
 			"user_id", userID,
@@ -172,14 +172,14 @@ func (r *TokenRepo) RevokeAllTokensForUser(ctx context.Context, userID int64) er
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		slog.Error("failed to get rows affected after revoking all tokens",
+		slog.ErrorContext(ctx, "failed to get rows affected after revoking all tokens",
 			"error", err,
 			"user_id", userID,
 			"method", "TokenRepo.RevokeAllTokensForUser")
 		return fmt.Errorf("checking revocation result: %w", err)
 	}
 
-	slog.Info("successfully revoked all tokens for user",
+	slog.InfoContext(ctx, "successfully revoked all tokens for user",
 		"user_id", userID,
 		"tokens_revoked", rowsAffected)
 
@@ -192,7 +192,7 @@ func (r *TokenRepo) UpdateLastUsed(ctx context.Context, tokenID string) error {
 
 	result, err := r.DB.ExecContext(ctx, stmt, time.Now(), tokenID)
 	if err != nil {
-		slog.Error("failed to update last used timestamp",
+		slog.ErrorContext(ctx, "failed to update last used timestamp",
 			"error", err,
 			"query", stmt,
 			"token_id", tokenID,
@@ -202,7 +202,7 @@ func (r *TokenRepo) UpdateLastUsed(ctx context.Context, tokenID string) error {
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		slog.Error("failed to get rows affected after updating last used",
+		slog.ErrorContext(ctx, "failed to get rows affected after updating last used",
 			"error", err,
 			"token_id", tokenID,
 			"method", "TokenRepo.UpdateLastUsed")
@@ -211,7 +211,7 @@ func (r *TokenRepo) UpdateLastUsed(ctx context.Context, tokenID string) error {
 	}
 
 	if rowsAffected == 0 {
-		slog.Warn("no token found to update last used timestamp",
+		slog.WarnContext(ctx, "no token found to update last used timestamp",
 			"token_id", tokenID,
 			"method", "TokenRepo.UpdateLastUsed")
 		// Don't return error as this shouldn't fail token validation
@@ -226,7 +226,7 @@ func (r *TokenRepo) CleanupExpiredTokens(ctx context.Context) error {
 
 	result, err := r.DB.ExecContext(ctx, stmt, time.Now())
 	if err != nil {
-		slog.Error("failed to cleanup expired tokens",
+		slog.ErrorContext(ctx, "failed to cleanup expired tokens",
 			"error", err,
 			"query", stmt,
 			"method", "TokenRepo.CleanupExpiredTokens")
@@ -235,13 +235,13 @@ func (r *TokenRepo) CleanupExpiredTokens(ctx context.Context) error {
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		slog.Error("failed to get rows affected after cleanup",
+		slog.ErrorContext(ctx, "failed to get rows affected after cleanup",
 			"error", err,
 			"method", "TokenRepo.CleanupExpiredTokens")
 		return fmt.Errorf("checking cleanup result: %w", err)
 	}
 
-	slog.Info("successfully cleaned up expired tokens",
+	slog.InfoContext(ctx, "successfully cleaned up expired tokens",
 		"tokens_deleted", rowsAffected)
 
 	return nil
@@ -253,7 +253,7 @@ func (r *TokenRepo) GetAllTokensForUser(ctx context.Context, userID string) ([]m
 
 	rows, err := r.DB.QueryContext(ctx, query, userID)
 	if err != nil {
-		slog.Error("failed to query all tokens for user",
+		slog.ErrorContext(ctx, "failed to query all tokens for user",
 			"error", err,
 			"query", query,
 			"user_id", userID,
@@ -262,16 +262,16 @@ func (r *TokenRepo) GetAllTokensForUser(ctx context.Context, userID string) ([]m
 	}
 	defer rows.Close()
 
-	tokens, err := scanTokenMetadataRows(rows)
+	tokens, err := scanTokenMetadataRows(ctx, rows)
 	if err != nil {
-		slog.Error("failed to scan token metadata rows",
+		slog.ErrorContext(ctx, "failed to scan token metadata rows",
 			"error", err,
 			"user_id", userID,
 			"method", "TokenRepo.GetAllTokensForUser")
 		return nil, fmt.Errorf("scanning token metadata: %w", err)
 	}
 
-	slog.Debug("successfully retrieved tokens for user",
+	slog.DebugContext(ctx, "successfully retrieved tokens for user",
 		"user_id", userID,
 		"token_count", len(tokens))
 
@@ -286,7 +286,7 @@ func (r *TokenRepo) GetActiveTokensForUser(ctx context.Context, userID string) (
 
 	rows, err := r.DB.QueryContext(ctx, query, userID, time.Now())
 	if err != nil {
-		slog.Error("failed to query active tokens for user",
+		slog.ErrorContext(ctx, "failed to query active tokens for user",
 			"error", err,
 			"query", query,
 			"user_id", userID,
@@ -295,16 +295,16 @@ func (r *TokenRepo) GetActiveTokensForUser(ctx context.Context, userID string) (
 	}
 	defer rows.Close()
 
-	tokens, err := scanTokenMetadataRows(rows)
+	tokens, err := scanTokenMetadataRows(ctx, rows)
 	if err != nil {
-		slog.Error("failed to scan active token metadata rows",
+		slog.ErrorContext(ctx, "failed to scan active token metadata rows",
 			"error", err,
 			"user_id", userID,
 			"method", "TokenRepo.GetActiveTokensForUser")
 		return nil, fmt.Errorf("scanning active token metadata: %w", err)
 	}
 
-	slog.Debug("successfully retrieved active tokens for user",
+	slog.DebugContext(ctx, "successfully retrieved active tokens for user",
 		"user_id", userID,
 		"active_token_count", len(tokens))
 
@@ -329,7 +329,7 @@ func (r *TokenRepo) GetTokenCountForUser(ctx context.Context, userID string, tok
 	var count int64
 	err := r.DB.QueryRowContext(ctx, query, args...).Scan(&count)
 	if err != nil {
-		slog.Error("failed to get token count for user",
+		slog.ErrorContext(ctx, "failed to get token count for user",
 			"error", err,
 			"query", query,
 			"user_id", userID,
@@ -338,7 +338,7 @@ func (r *TokenRepo) GetTokenCountForUser(ctx context.Context, userID string, tok
 		return 0, fmt.Errorf("getting token count for user: %w", err)
 	}
 
-	slog.Debug("successfully retrieved token count for user",
+	slog.DebugContext(ctx, "successfully retrieved token count for user",
 		"user_id", userID,
 		"token_type", tokenType,
 		"count", count)
@@ -384,7 +384,7 @@ func scanTokenMetadata(row *sql.Row) (*models.TokenMetadata, error) {
 }
 
 // scanTokenMetadataRows is a helper function to scan multiple rows into a slice of TokenMetadata structs.
-func scanTokenMetadataRows(rows *sql.Rows) ([]models.TokenMetadata, error) {
+func scanTokenMetadataRows(ctx context.Context, rows *sql.Rows) ([]models.TokenMetadata, error) {
 	var tokens []models.TokenMetadata
 
 	for rows.Next() {
@@ -403,7 +403,7 @@ func scanTokenMetadataRows(rows *sql.Rows) ([]models.TokenMetadata, error) {
 			&metadata.ExpiresAt,
 			&lastUsedAt,
 		); err != nil {
-			slog.Error("failed to scan token metadata row",
+			slog.ErrorContext(ctx, "failed to scan token metadata row",
 				"error", err,
 				"method", "scanTokenMetadataRows")
 			return nil, err
@@ -425,7 +425,7 @@ func scanTokenMetadataRows(rows *sql.Rows) ([]models.TokenMetadata, error) {
 
 	// Check if there was any error while iterating through the rows
 	if err := rows.Err(); err != nil {
-		slog.Error("error iterating through token metadata rows",
+		slog.ErrorContext(ctx, "error iterating through token metadata rows",
 			"error", err,
 			"method", "scanTokenMetadataRows")
 		return nil, fmt.Errorf("scanning token metadata: %w", err)

@@ -41,7 +41,7 @@ func (h *AuthHandler) Authenticate(w http.ResponseWriter, r *http.Request) {
 
 	err := utils.ReadJSON(w, r, &requestPayload)
 	if err != nil {
-		slog.Error("failed to read JSON payload for authentication",
+		slog.ErrorContext(r.Context(), "failed to read JSON payload for authentication",
 			"error", err,
 			"method", "AuthHandler.Authenticate",
 			"remote_addr", r.RemoteAddr)
@@ -51,7 +51,7 @@ func (h *AuthHandler) Authenticate(w http.ResponseWriter, r *http.Request) {
 
 	// Validate input
 	if requestPayload.Email == "" || requestPayload.Password == "" {
-		slog.Warn("authentication attempt with missing credentials",
+		slog.WarnContext(r.Context(), "authentication attempt with missing credentials",
 			"method", "AuthHandler.Authenticate",
 			"remote_addr", r.RemoteAddr)
 		utils.ErrorJSON(w, errors.New("email and password are required"), http.StatusBadRequest)
@@ -60,7 +60,7 @@ func (h *AuthHandler) Authenticate(w http.ResponseWriter, r *http.Request) {
 
 	// Validate email format
 	if !utils.IsValidEmail(requestPayload.Email) {
-		slog.Warn("authentication attempt with invalid email format",
+		slog.WarnContext(r.Context(), "authentication attempt with invalid email format",
 			"email", requestPayload.Email,
 			"method", "AuthHandler.Authenticate",
 			"remote_addr", r.RemoteAddr)
@@ -69,9 +69,9 @@ func (h *AuthHandler) Authenticate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// validate the user against the database
-	user, err := h.UserService.GetByEmail(context.Background(), requestPayload.Email)
+	user, err := h.UserService.GetByEmail(context.WithoutCancel(r.Context()), requestPayload.Email)
 	if err != nil {
-		slog.Error("failed to get user by email during authentication",
+		slog.ErrorContext(r.Context(), "failed to get user by email during authentication",
 			"error", err,
 			"email", requestPayload.Email,
 			"method", "AuthHandler.Authenticate",
@@ -81,7 +81,7 @@ func (h *AuthHandler) Authenticate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if user == nil {
-		slog.Error("retrieved user is nil",
+		slog.ErrorContext(r.Context(), "retrieved user is nil",
 			"email", requestPayload.Email,
 			"method", "AuthHandler.Authenticate",
 			"remote_addr", r.RemoteAddr)
@@ -91,7 +91,7 @@ func (h *AuthHandler) Authenticate(w http.ResponseWriter, r *http.Request) {
 
 	// Check if user is active
 	if !user.IsActive {
-		slog.Warn("authentication attempt for inactive user",
+		slog.WarnContext(r.Context(), "authentication attempt for inactive user",
 			"email", requestPayload.Email,
 			"user_id", user.ID,
 			"method", "AuthHandler.Authenticate",
@@ -102,7 +102,7 @@ func (h *AuthHandler) Authenticate(w http.ResponseWriter, r *http.Request) {
 
 	valid, err := h.UserService.PasswordMatches(user, requestPayload.Password)
 	if err != nil {
-		slog.Error("error checking password during authentication",
+		slog.ErrorContext(r.Context(), "error checking password during authentication",
 			"error", err,
 			"email", requestPayload.Email,
 			"method", "AuthHandler.Authenticate",
@@ -112,7 +112,7 @@ func (h *AuthHandler) Authenticate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !valid {
-		slog.Warn("invalid password attempt",
+		slog.WarnContext(r.Context(), "invalid password attempt",
 			"email", requestPayload.Email,
 			"method", "AuthHandler.Authenticate",
 			"remote_addr", r.RemoteAddr)
@@ -121,9 +121,9 @@ func (h *AuthHandler) Authenticate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate JWT tokens
-	accessToken, refreshToken, err := h.TokenService.GenerateTokens(context.Background(), user)
+	accessToken, refreshToken, err := h.TokenService.GenerateTokens(context.WithoutCancel(r.Context()), user)
 	if err != nil {
-		slog.Error("failed to generate tokens during authentication",
+		slog.ErrorContext(r.Context(), "failed to generate tokens during authentication",
 			"error", err,
 			"email", user.Email,
 			"user_id", user.ID,
@@ -135,16 +135,16 @@ func (h *AuthHandler) Authenticate(w http.ResponseWriter, r *http.Request) {
 
 	// Update user's last login timestamp
 	user.LastLogin = time.Now()
-	if err := h.UserService.Update(context.Background(), *user); err != nil {
+	if err := h.UserService.Update(context.WithoutCancel(r.Context()), *user); err != nil {
 		// Log error but don't fail the authentication (non-critical operation)
-		slog.Error("failed to update last login time (non-critical)",
+		slog.ErrorContext(r.Context(), "failed to update last login time (non-critical)",
 			"error", err,
 			"user_id", user.ID,
 			"email", user.Email,
 			"method", "AuthHandler.Authenticate")
 	}
 
-	slog.Info("user authenticated successfully",
+	slog.InfoContext(r.Context(), "user authenticated successfully",
 		"email", user.Email,
 		"user_id", user.ID,
 		"method", "AuthHandler.Authenticate",
@@ -179,7 +179,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	err := utils.ReadJSON(w, r, &requestPayload)
 	if err != nil {
-		slog.Error("failed to read JSON payload for registration",
+		slog.ErrorContext(r.Context(), "failed to read JSON payload for registration",
 			"error", err,
 			"method", "AuthHandler.Register",
 			"remote_addr", r.RemoteAddr)
@@ -195,7 +195,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		requestPayload.Password,
 	)
 	if err != nil {
-		slog.Warn("registration validation failed",
+		slog.WarnContext(r.Context(), "registration validation failed",
 			"error", err.Error(),
 			"method", "AuthHandler.Register",
 			"remote_addr", r.RemoteAddr)
@@ -204,9 +204,9 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if user already exists
-	existingUser, err := h.UserService.GetByEmail(context.Background(), requestPayload.Email)
+	existingUser, err := h.UserService.GetByEmail(context.WithoutCancel(r.Context()), requestPayload.Email)
 	if err == nil && existingUser != nil {
-		slog.Warn("registration attempt with existing email",
+		slog.WarnContext(r.Context(), "registration attempt with existing email",
 			"email", requestPayload.Email,
 			"method", "AuthHandler.Register",
 			"remote_addr", r.RemoteAddr)
@@ -224,9 +224,9 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		IsActive:  true,
 	}
 
-	newUserID, err := h.UserService.Insert(context.Background(), usr)
+	newUserID, err := h.UserService.Insert(context.WithoutCancel(r.Context()), usr)
 	if err != nil {
-		slog.Error("failed to insert new user during registration",
+		slog.ErrorContext(r.Context(), "failed to insert new user during registration",
 			"error", err,
 			"email", usr.Email,
 			"first_name", usr.FirstName,
@@ -238,9 +238,9 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get the created user to generate tokens
-	newUser, err := h.UserService.GetByID(context.Background(), newUserID)
+	newUser, err := h.UserService.GetByID(context.WithoutCancel(r.Context()), newUserID)
 	if err != nil {
-		slog.Error("failed to retrieve newly created user",
+		slog.ErrorContext(r.Context(), "failed to retrieve newly created user",
 			"error", err,
 			"user_id", newUserID,
 			"method", "AuthHandler.Register",
@@ -250,7 +250,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if newUser == nil {
-		slog.Error("retrieved user is nil after creation",
+		slog.ErrorContext(r.Context(), "retrieved user is nil after creation",
 			"user_id", newUserID,
 			"method", "AuthHandler.Register",
 			"remote_addr", r.RemoteAddr)
@@ -259,16 +259,16 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate JWT tokens for the new user (auto-login after registration)
-	accessToken, refreshToken, err := h.TokenService.GenerateTokens(context.Background(), newUser)
+	accessToken, refreshToken, err := h.TokenService.GenerateTokens(context.WithoutCancel(r.Context()), newUser)
 	if err != nil {
-		slog.Error("failed to generate tokens during registration",
+		slog.ErrorContext(r.Context(), "failed to generate tokens during registration",
 			"error", err,
 			"email", newUser.Email,
 			"user_id", newUser.ID,
 			"method", "AuthHandler.Register",
 			"remote_addr", r.RemoteAddr)
 		// Don't fail registration, just log the user in manually later
-		slog.Info("new user registered successfully (without auto-login)",
+		slog.InfoContext(r.Context(), "new user registered successfully (without auto-login)",
 			"email", usr.Email,
 			"user_id", newUserID,
 			"first_name", usr.FirstName,
@@ -285,7 +285,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.Info("new user registered and authenticated successfully",
+	slog.InfoContext(r.Context(), "new user registered and authenticated successfully",
 		"email", usr.Email,
 		"user_id", newUserID,
 		"first_name", usr.FirstName,
@@ -325,7 +325,7 @@ func (h *AuthHandler) Refresh(w http.ResponseWriter, r *http.Request) {
 
 	accessToken, err := h.TokenService.RefreshAccessToken(r.Context(), requestPayload.RefreshToken)
 	if err != nil {
-		slog.Warn("token refresh failed", "error", err, "remote_addr", r.RemoteAddr)
+		slog.WarnContext(r.Context(), "token refresh failed", "error", err, "remote_addr", r.RemoteAddr)
 		utils.ErrorJSON(w, errors.New("invalid refresh token"), http.StatusUnauthorized)
 		return
 	}
@@ -393,7 +393,7 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.TokenService.RevokeToken(r.Context(), token); err != nil {
-		slog.Error("failed to revoke token during logout", "error", err)
+		slog.ErrorContext(r.Context(), "failed to revoke token during logout", "error", err)
 		utils.ErrorJSON(w, errors.New("failed to logout"), http.StatusInternalServerError)
 		return
 	}
@@ -426,27 +426,29 @@ func (h *AuthHandler) ForgotPassword(w http.ResponseWriter, r *http.Request) {
 	// Responding before doing the work keeps the response time independent of
 	// whether the account exists; otherwise the lookup, token insert and mail
 	// send would make existing addresses measurably slower. The request context
-	// is not reused because it is cancelled as soon as this handler returns.
-	go func(email string) {
+	// is not reused as-is because it is cancelled as soon as this handler
+	// returns; WithoutCancel drops that cancellation while keeping the
+	// correlation id, so this detached work still logs under the request's id.
+	go func(ctx context.Context, email string) {
 		// No HTTP middleware can recover a panic raised off the request
 		// goroutine, so an unguarded one here would take down the process.
 		defer func() {
 			if recovered := recover(); recovered != nil {
-				slog.Error("password reset request panicked",
+				slog.ErrorContext(ctx, "password reset request panicked",
 					"panic", recovered,
 					"method", "AuthHandler.ForgotPassword")
 			}
 		}()
 
-		ctx, cancel := context.WithTimeout(context.Background(), forgotPasswordTimeout)
+		ctx, cancel := context.WithTimeout(ctx, forgotPasswordTimeout)
 		defer cancel()
 
 		if err := h.PasswordResetService.RequestReset(ctx, email); err != nil {
-			slog.Error("failed to process password reset request",
+			slog.ErrorContext(ctx, "failed to process password reset request",
 				"error", err,
 				"method", "AuthHandler.ForgotPassword")
 		}
-	}(requestPayload.Email)
+	}(context.WithoutCancel(r.Context()), requestPayload.Email)
 
 	payload := utils.JsonResponse{Error: false, Message: forgotPasswordMessage}
 	_ = utils.WriteJSON(w, payload, http.StatusAccepted)
@@ -478,13 +480,13 @@ func (h *AuthHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, services.ErrInvalidResetToken):
 		// Missing, expired and already-used tokens share this response so it
 		// cannot be used to probe which links exist.
-		slog.Warn("password reset attempted with an unusable token",
+		slog.WarnContext(r.Context(), "password reset attempted with an unusable token",
 			"method", "AuthHandler.ResetPassword",
 			"remote_addr", r.RemoteAddr)
 		utils.ErrorJSON(w, errors.New("invalid or expired reset token"), http.StatusBadRequest)
 		return
 	default:
-		slog.Error("failed to reset password",
+		slog.ErrorContext(r.Context(), "failed to reset password",
 			"error", err,
 			"method", "AuthHandler.ResetPassword")
 		utils.ErrorJSON(w, errors.New("failed to reset password"), http.StatusInternalServerError)
@@ -514,7 +516,7 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := utils.ReadJSON(w, r, &requestPayload); err != nil {
-		slog.Error("failed to read JSON payload for password change",
+		slog.ErrorContext(r.Context(), "failed to read JSON payload for password change",
 			"error", err,
 			"user_id", claims.UserID,
 			"method", "AuthHandler.ChangePassword",
@@ -537,14 +539,14 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		utils.ErrorJSON(w, err, http.StatusBadRequest)
 		return
 	case errors.Is(err, services.ErrInvalidCredentials):
-		slog.Warn("password change attempt with incorrect current password",
+		slog.WarnContext(r.Context(), "password change attempt with incorrect current password",
 			"user_id", claims.UserID,
 			"method", "AuthHandler.ChangePassword",
 			"remote_addr", r.RemoteAddr)
 		utils.ErrorJSON(w, errors.New("current password is incorrect"), http.StatusUnauthorized)
 		return
 	default:
-		slog.Error("failed to change password",
+		slog.ErrorContext(r.Context(), "failed to change password",
 			"error", err,
 			"user_id", claims.UserID,
 			"method", "AuthHandler.ChangePassword")
@@ -552,7 +554,7 @@ func (h *AuthHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slog.Info("password changed",
+	slog.InfoContext(r.Context(), "password changed",
 		"user_id", claims.UserID,
 		"method", "AuthHandler.ChangePassword",
 		"remote_addr", r.RemoteAddr)

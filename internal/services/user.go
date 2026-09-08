@@ -31,13 +31,13 @@ func (s *UserService) GetAll(ctx context.Context) ([]*models.User, error) {
 
 	users, err := s.userRepo.GetAll(ctx)
 	if err != nil {
-		slog.Error("failed to get all users from repository",
+		slog.ErrorContext(ctx, "failed to get all users from repository",
 			"error", err,
 			"method", "UserService.GetAll")
 		return nil, err
 	}
 
-	slog.Info("successfully retrieved all users",
+	slog.InfoContext(ctx, "successfully retrieved all users",
 		"user_count", len(users),
 		"method", "UserService.GetAll")
 
@@ -47,7 +47,7 @@ func (s *UserService) GetAll(ctx context.Context) ([]*models.User, error) {
 func (s *UserService) GetByID(ctx context.Context, id int64) (*models.User, error) {
 	// Validate the input user data
 	if id == 0 {
-		slog.Warn("invalid user ID provided (zero value)",
+		slog.WarnContext(ctx, "invalid user ID provided (zero value)",
 			"id", id,
 			"method", "UserService.GetByID")
 		return nil, fmt.Errorf("user ID must be provided")
@@ -58,20 +58,20 @@ func (s *UserService) GetByID(ctx context.Context, id int64) (*models.User, erro
 
 	user, err := s.userRepo.GetByID(ctx, id)
 	if err != nil {
-		slog.Error("failed to get user by ID from repository",
+		slog.ErrorContext(ctx, "failed to get user by ID from repository",
 			"error", err,
 			"id", id,
 			"method", "UserService.GetByID")
 		return nil, err
 	}
 	if user == nil {
-		slog.Warn("user repository returned nil user",
+		slog.WarnContext(ctx, "user repository returned nil user",
 			"id", id,
 			"method", "UserService.GetByID")
 		return nil, nil
 	}
 
-	slog.Info("successfully retrieved user by ID",
+	slog.InfoContext(ctx, "successfully retrieved user by ID",
 		"id", id,
 		"email", user.Email,
 		"method", "UserService.GetByID")
@@ -81,7 +81,7 @@ func (s *UserService) GetByID(ctx context.Context, id int64) (*models.User, erro
 
 func (s *UserService) GetByEmail(ctx context.Context, email string) (*models.User, error) {
 	if email == "" {
-		slog.Warn("empty email provided",
+		slog.WarnContext(ctx, "empty email provided",
 			"email", email,
 			"method", "UserService.GetByEmail")
 		return nil, fmt.Errorf("user email must be provided")
@@ -92,7 +92,7 @@ func (s *UserService) GetByEmail(ctx context.Context, email string) (*models.Use
 
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
-		slog.Error("failed to get user by email from repository",
+		slog.ErrorContext(ctx, "failed to get user by email from repository",
 			"error", err,
 			"email", email,
 			"method", "UserService.GetByEmail")
@@ -100,7 +100,7 @@ func (s *UserService) GetByEmail(ctx context.Context, email string) (*models.Use
 	}
 
 	if user != nil {
-		slog.Info("successfully retrieved user by email",
+		slog.InfoContext(ctx, "successfully retrieved user by email",
 			"email", email,
 			"user_id", user.ID,
 			"method", "UserService.GetByEmail")
@@ -112,7 +112,7 @@ func (s *UserService) GetByEmail(ctx context.Context, email string) (*models.Use
 // Update updates the fields of a user. Only non-zero or non-empty fields in the user struct will be updated.
 func (s *UserService) Update(ctx context.Context, u models.User) error {
 	if u.ID == 0 {
-		slog.Warn("invalid user ID provided for update (zero value)",
+		slog.WarnContext(ctx, "invalid user ID provided for update (zero value)",
 			"id", u.ID,
 			"method", "UserService.Update")
 		return fmt.Errorf("user ID must be provided")
@@ -124,7 +124,7 @@ func (s *UserService) Update(ctx context.Context, u models.User) error {
 	// Call the repository's Update method
 	err := s.userRepo.Update(ctx, u)
 	if err != nil {
-		slog.Error("failed to update user in repository",
+		slog.ErrorContext(ctx, "failed to update user in repository",
 			"error", err,
 			"user_id", u.ID,
 			"email", u.Email,
@@ -132,7 +132,7 @@ func (s *UserService) Update(ctx context.Context, u models.User) error {
 		return fmt.Errorf("failed to update user: %w", err)
 	}
 
-	slog.Info("successfully updated user",
+	slog.InfoContext(ctx, "successfully updated user",
 		"user_id", u.ID,
 		"email", u.Email,
 		"method", "UserService.Update")
@@ -142,7 +142,7 @@ func (s *UserService) Update(ctx context.Context, u models.User) error {
 
 func (s *UserService) DeleteByID(ctx context.Context, id int64) error {
 	if id == 0 {
-		slog.Warn("invalid user ID provided for deletion (zero value)",
+		slog.WarnContext(ctx, "invalid user ID provided for deletion (zero value)",
 			"id", id,
 			"method", "UserService.DeleteByID")
 		return fmt.Errorf("user ID must be provided")
@@ -153,14 +153,14 @@ func (s *UserService) DeleteByID(ctx context.Context, id int64) error {
 
 	err := s.userRepo.DeleteByID(ctx, id)
 	if err != nil {
-		slog.Error("failed to delete user from repository",
+		slog.ErrorContext(ctx, "failed to delete user from repository",
 			"error", err,
 			"id", id,
 			"method", "UserService.DeleteByID")
 		return err
 	}
 
-	slog.Info("successfully deleted user",
+	slog.InfoContext(ctx, "successfully deleted user",
 		"id", id,
 		"method", "UserService.DeleteByID")
 
@@ -174,7 +174,7 @@ func (s *UserService) Insert(ctx context.Context, u models.User) (int64, error) 
 	// Encrypt the user pwd (hash the pwd)
 	encryptedPwd, err := bcrypt.GenerateFromPassword([]byte(u.Password), 12)
 	if err != nil {
-		slog.Error("failed to encrypt password",
+		slog.ErrorContext(ctx, "failed to encrypt password",
 			"error", err,
 			"email", u.Email,
 			"method", "UserService.Insert")
@@ -186,7 +186,7 @@ func (s *UserService) Insert(ctx context.Context, u models.User) (int64, error) 
 
 	newUserID, err := s.userRepo.Insert(ctx, u)
 	if err != nil {
-		slog.Error("failed to insert user in repository",
+		slog.ErrorContext(ctx, "failed to insert user in repository",
 			"error", err,
 			"email", u.Email,
 			"first_name", u.FirstName,
@@ -195,7 +195,7 @@ func (s *UserService) Insert(ctx context.Context, u models.User) (int64, error) 
 		return 0, err
 	}
 
-	slog.Info("successfully inserted new user",
+	slog.InfoContext(ctx, "successfully inserted new user",
 		"user_id", newUserID,
 		"email", u.Email,
 		"first_name", u.FirstName,
@@ -229,7 +229,7 @@ func (s *UserService) ResetPassword(ctx context.Context, user *models.User) erro
 	// Hash the new password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(user.Password), 12)
 	if err != nil {
-		slog.Error("failed to hash password during reset",
+		slog.ErrorContext(ctx, "failed to hash password during reset",
 			"error", err,
 			"user_id", user.ID,
 			"method", "UserService.ResetPassword")
@@ -240,14 +240,14 @@ func (s *UserService) ResetPassword(ctx context.Context, user *models.User) erro
 	// which does not touch the password column).
 	err = s.userRepo.UpdatePassword(ctx, user.ID, string(hashedPassword))
 	if err != nil {
-		slog.Error("failed to update password in repository",
+		slog.ErrorContext(ctx, "failed to update password in repository",
 			"error", err,
 			"user_id", user.ID,
 			"method", "UserService.ResetPassword")
 		return err
 	}
 
-	slog.Info("successfully reset user password",
+	slog.InfoContext(ctx, "successfully reset user password",
 		"user_id", user.ID,
 		"method", "UserService.ResetPassword")
 

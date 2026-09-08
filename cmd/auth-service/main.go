@@ -11,6 +11,7 @@ import (
 
 	"github.com/eupneart/auth-service/internal/api"
 	"github.com/eupneart/auth-service/internal/db"
+	"github.com/eupneart/auth-service/internal/logging"
 	"github.com/eupneart/auth-service/internal/mail"
 	"github.com/eupneart/auth-service/internal/repositories"
 	"github.com/eupneart/auth-service/internal/services"
@@ -34,9 +35,9 @@ func main() {
 		logLevel = slog.LevelDebug
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+	logger := slog.New(logging.NewHandler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: logLevel,
-	}))
+	})))
 	slog.SetDefault(logger)
 
 	logger.Info("Starting authentication service",
