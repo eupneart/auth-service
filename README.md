@@ -145,8 +145,9 @@ which drops three packages:
 - `internal/db` opens the database connection and retries ten times with
   cumulative sleeps of about a minute. There is no seam to shorten that, so a
   test of it would be slow rather than useful.
-- `utils` holds thin JSON and validation helpers that are covered indirectly
-  through the handlers that call them.
+- `utils` mixes thin JSON helpers, covered indirectly through the handlers that
+  call them, with validation helpers that do have direct tests. It stays
+  excluded as a package because the JSON half has none of its own.
 
 Including them charged the total for a large block of statements no test is
 meant to reach, which pulled the aggregate down far enough to hide regressions
