@@ -117,7 +117,7 @@ func TestUserService_Insert(t *testing.T) {
 	ctx := context.Background()
 
 	// Test user insertion
-	newUser := models.User{Email: "new@example.com", Password: "testpassword"}
+	newUser := models.User{Email: "new@example.com", Password: testPassword}
 	expectedID := int64(1)
 
 	mockRepo.On("Insert", mock.Anything, mock.AnythingOfType("models.User")).
@@ -259,9 +259,8 @@ func TestUserService_PasswordMatches(t *testing.T) {
 // Repository error paths
 // ----------------------------------------------------------------------------
 
-// overLongPassword exceeds bcrypt's 72-byte input limit. IsValidPassword now
-// rejects it, but UserService.Insert hashes without validating first, so it
-// still reaches the hash call there.
+// overLongPassword exceeds bcrypt's 72-byte input limit, so IsValidPassword
+// rejects it before any password-write path reaches the hash call.
 const overLongPassword = "Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!"
 
 func TestUserService_GetAll_RepoError(t *testing.T) {
@@ -339,7 +338,7 @@ func TestUserService_Insert_RepoError(t *testing.T) {
 	assert.Zero(t, id)
 }
 
-func TestUserService_Insert_PasswordTooLongToHash(t *testing.T) {
+func TestUserService_Insert_RejectsOverLongPassword(t *testing.T) {
 	mockRepo := new(MockUserRepo)
 
 	id, err := New(mockRepo).Insert(context.Background(), models.User{
@@ -348,8 +347,38 @@ func TestUserService_Insert_PasswordTooLongToHash(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Zero(t, id)
-	assert.Contains(t, err.Error(), "encrypting password")
+	assert.Contains(t, err.Error(), "password does not meet strength requirements")
 	mockRepo.AssertNotCalled(t, "Insert", mock.Anything, mock.Anything)
+}
+
+// Insert is the only path that stores a new password hash, so it enforces
+// strength itself rather than trusting the caller to have done it.
+func TestUserService_Insert_RejectsWeakPassword(t *testing.T) {
+	testCases := []struct {
+		name     string
+		password string
+	}{
+		{"empty", ""},
+		{"too short", "Aa1!"},
+		{"no uppercase", "newpassw0rd!"},
+		{"no lowercase", "NEWPASSW0RD!"},
+		{"no digit", "NewPassword!"},
+		{"no special character", "NewPassw0rd"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockRepo := new(MockUserRepo)
+
+			id, err := New(mockRepo).Insert(context.Background(), models.User{
+				Email: "user@example.com", Password: tc.password,
+			})
+
+			assert.Error(t, err)
+			assert.Zero(t, id)
+			mockRepo.AssertNotCalled(t, "Insert", mock.Anything, mock.Anything)
+		})
+	}
 }
 
 func TestUserService_ResetPassword_NilUser(t *testing.T) {

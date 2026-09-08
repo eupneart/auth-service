@@ -168,6 +168,13 @@ func (s *UserService) DeleteByID(ctx context.Context, id int64) error {
 }
 
 func (s *UserService) Insert(ctx context.Context, u models.User) (int64, error) {
+	// Checked here as well as at the handler. This is the only path that stores
+	// a new password hash, so the strength guarantee must not depend on every
+	// caller remembering to validate first.
+	if !utils.IsValidPassword(u.Password) {
+		return 0, fmt.Errorf("password does not meet strength requirements")
+	}
+
 	ctx, cancel := context.WithTimeout(ctx, dbTimeout)
 	defer cancel()
 
