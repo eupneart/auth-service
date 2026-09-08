@@ -41,7 +41,10 @@ func main() {
 		command = "up"
 	}
 
-	cfg := env.LoadEnv()
+	cfg, err := env.LoadEnv()
+	if err != nil {
+		log.Fatalf("loading configuration: %v", err)
+	}
 
 	// ConnectToDB logs and returns nil rather than an error when Postgres never
 	// answers, so an unchecked result would panic on the first query.
@@ -55,7 +58,6 @@ func main() {
 		log.Fatalf("creating schema_migrations: %v", err)
 	}
 
-	var err error
 	switch command {
 	case "up":
 		err = migrateUp(conn, *dir)

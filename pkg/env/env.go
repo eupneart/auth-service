@@ -4,9 +4,10 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -37,16 +38,19 @@ type EnvConfig struct {
 
 var Config *EnvConfig
 
-// Initialize AppConfig by loading environment variables
-func LoadEnv() *EnvConfig {
+// LoadEnv reads the configuration into Config and returns it.
+//
+// It reports missing or unusable configuration as an error rather than exiting,
+// so the caller decides how to report the failure and the failure paths stay
+// testable.
+func LoadEnv() (*EnvConfig, error) {
 	// Load .env file dynamically based on APP_ENV
 	envFile := ".env"
 	if appEnv, exists := os.LookupEnv("APP_ENV"); exists {
 		envFile = fmt.Sprintf(".env.%s", appEnv)
 	}
-	err := godotenv.Load(envFile)
-	if err != nil {
-		log.Printf("[INFO] No %s file found, using system environment variables", envFile)
+	if err := godotenv.Load(envFile); err != nil {
+		slog.Info("No env file found, using system environment variables", "file", envFile)
 	}
 
 	// Determine app environment
@@ -72,22 +76,27 @@ func LoadEnv() *EnvConfig {
 
 	if isProduction {
 		// Production: require critical variables
-		dbHost = getEnvRequired("DB_HOST")
-		dbPassword = getEnvRequired("DB_PASSWORD")
-		dbName = getEnvRequired("DB_NAME")
-		jwtSecret = getEnvRequired("JWT_SECRET")
+		var required requiredEnv
+		dbHost = required.get("DB_HOST")
+		dbPassword = required.get("DB_PASSWORD")
+		dbName = required.get("DB_NAME")
+		jwtSecret = required.get("JWT_SECRET")
 		// Optional with defaults in production
 		dbPort = getEnv("DB_PORT", "5432")
 		dbUser = getEnv("DB_USER", "postgres")
 
 		// Password reset needs a real sender in production; the development
 		// file mailer would leave live reset links on disk.
-		passwordResetBaseURL = getEnvRequired("PASSWORD_RESET_BASE_URL")
-		smtpHost = getEnvRequired("SMTP_HOST")
+		passwordResetBaseURL = required.get("PASSWORD_RESET_BASE_URL")
+		smtpHost = required.get("SMTP_HOST")
 		smtpPort = getEnv("SMTP_PORT", "587")
-		smtpUsername = getEnvRequired("SMTP_USERNAME")
-		smtpPassword = getEnvRequired("SMTP_PASSWORD")
-		smtpFrom = getEnvRequired("SMTP_FROM")
+		smtpUsername = required.get("SMTP_USERNAME")
+		smtpPassword = required.get("SMTP_PASSWORD")
+		smtpFrom = required.get("SMTP_FROM")
+
+		if err := required.err(); err != nil {
+			return nil, err
+		}
 	} else {
 		// Development: all optional with defaults, except JWT_SECRET (auto-generate if missing)
 		dbHost = getEnv("DB_HOST", "localhost")
@@ -99,8 +108,12 @@ func LoadEnv() *EnvConfig {
 		// Auto-generate random secret for development if not set
 		jwtSecret = getEnv("JWT_SECRET", "")
 		if jwtSecret == "" {
-			jwtSecret = generateRandomSecret(32)
-			log.Printf("[INFO] Generated random JWT secret for development")
+			secret, err := generateRandomSecret(32)
+			if err != nil {
+				return nil, fmt.Errorf("generating development JWT secret: %w", err)
+			}
+			jwtSecret = secret
+			slog.Info("Generated random JWT secret for development")
 		}
 
 		passwordResetBaseURL = getEnv("PASSWORD_RESET_BASE_URL", "http://localhost:4200/reset-password")
@@ -130,7 +143,7 @@ func LoadEnv() *EnvConfig {
 		SMTPFrom:             smtpFrom,
 	}
 
-	return Config
+	return Config, nil
 }
 
 func getEnv(key, defaultValue string) string {
@@ -140,23 +153,38 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
-// getEnvRequired retrieves a required environment variable
-// Fails fast if the variable is not set (typically used for production)
-func getEnvRequired(key string) string {
+// requiredEnv collects the names of the required variables that are missing, so
+// that a misconfigured deployment is told about all of them at once instead of
+// one per restart.
+type requiredEnv struct {
+	missing []string
+}
+
+// get returns the value of a required environment variable, recording the key
+// as missing when it is unset or empty.
+func (r *requiredEnv) get(key string) string {
 	if value, exists := os.LookupEnv(key); exists && value != "" {
 		return value
 	}
-	log.Fatalf("required environment variable %s is not set", key)
+	r.missing = append(r.missing, key)
 	return ""
 }
 
+// err reports every key recorded as missing, or nil when none were.
+func (r *requiredEnv) err() error {
+	if len(r.missing) == 0 {
+		return nil
+	}
+	return fmt.Errorf("required environment variables not set: %s", strings.Join(r.missing, ", "))
+}
+
 // generateRandomSecret generates a cryptographically secure random secret
-func generateRandomSecret(length int) string {
+func generateRandomSecret(length int) (string, error) {
 	bytes := make([]byte, length)
 	if _, err := rand.Read(bytes); err != nil {
-		log.Fatalf("failed to generate random secret: %v", err)
+		return "", err
 	}
-	return base64.StdEncoding.EncodeToString(bytes)
+	return base64.StdEncoding.EncodeToString(bytes), nil
 }
 
 // GetEnvAsInt gets an environment variable as integer with fallback
@@ -164,7 +192,8 @@ func GetEnvAsInt(key string, defaultValue int) int {
 	valueStr := getEnv(key, strconv.Itoa(defaultValue))
 	value, err := strconv.Atoi(valueStr)
 	if err != nil {
-		log.Printf("[WARN] Invalid integer for %s: %s, using default: %d", key, valueStr, defaultValue)
+		slog.Warn("Invalid integer for environment variable, using default",
+			"key", key, "value", valueStr, "default", defaultValue)
 		return defaultValue
 	}
 	return value
@@ -175,7 +204,8 @@ func GetEnvAsDuration(key, defaultValue string) time.Duration {
 	valueStr := getEnv(key, defaultValue)
 	duration, err := time.ParseDuration(valueStr)
 	if err != nil {
-		log.Printf("[WARN] Invalid duration for %s: %s, using default: %s", key, valueStr, defaultValue)
+		slog.Warn("Invalid duration for environment variable, using default",
+			"key", key, "value", valueStr, "default", defaultValue)
 		duration, _ = time.ParseDuration(defaultValue)
 	}
 	return duration
@@ -192,12 +222,12 @@ func IsDevelopment() bool {
 }
 
 func (c *EnvConfig) ToDSN() string {
-    return fmt.Sprintf(
-        "host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-        c.DBHost,
-        c.DBPort,
-        c.DBUser,
-        c.DBPassword,
-        c.DBName,
-    )
+	return fmt.Sprintf(
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		c.DBHost,
+		c.DBPort,
+		c.DBUser,
+		c.DBPassword,
+		c.DBName,
+	)
 }

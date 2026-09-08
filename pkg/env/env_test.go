@@ -6,13 +6,14 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestLoadEnv_ValidEnvVars(t *testing.T) {
 	// Clean before test
 	cleanupEnvVars()
 	defer cleanupEnvVars()
-	
+
 	// Set the environment variables for this test
 	t.Setenv("DB_HOST", "testhost")
 	t.Setenv("DB_PORT", "5433")
@@ -25,7 +26,7 @@ func TestLoadEnv_ValidEnvVars(t *testing.T) {
 	t.Setenv("APP_ENV", "testing")
 
 	// Load the environment
-	LoadEnv()
+	loadEnvForTest(t)
 
 	// Assert that the values are correctly loaded into the Config
 	assert.Equal(t, "testhost", Config.DBHost)
@@ -43,11 +44,11 @@ func TestLoadEnv_DefaultValues(t *testing.T) {
 	// Clean before test
 	cleanupEnvVars()
 	defer cleanupEnvVars()
-	
+
 	t.Setenv("APP_ENV", "development")
 
 	// Load environment variables (which should fall back to defaults)
-	LoadEnv()
+	loadEnvForTest(t)
 
 	// Assert that the default values are used
 	assert.Equal(t, "localhost", Config.DBHost)
@@ -67,11 +68,11 @@ func TestLoadEnv_MissingEnvFile(t *testing.T) {
 	// Clean before test
 	cleanupEnvVars()
 	defer cleanupEnvVars()
-	
+
 	t.Setenv("APP_ENV", "development")
 
 	// Load environment variables
-	LoadEnv()
+	loadEnvForTest(t)
 
 	// Check if default environment variables are used since no .env file is present
 	assert.Equal(t, "localhost", Config.DBHost)
@@ -91,7 +92,7 @@ func TestLoadEnv_EnvironmentSpecificFiles(t *testing.T) {
 	// Clean before test
 	cleanupEnvVars()
 	defer cleanupEnvVars()
-	
+
 	// Test that different APP_ENV values attempt to load different .env files
 	t.Setenv("APP_ENV", "production")
 	t.Setenv("DB_HOST", "prod-host")
@@ -101,8 +102,8 @@ func TestLoadEnv_EnvironmentSpecificFiles(t *testing.T) {
 	setProductionMailVars(t)
 
 	// Load environment (will try to load .env.production but fall back to env vars)
-	LoadEnv()
-	
+	loadEnvForTest(t)
+
 	assert.Equal(t, "production", Config.AppEnv)
 	assert.Equal(t, "prod-host", Config.DBHost)
 	assert.Equal(t, "prod-pass", Config.DBPassword)
@@ -113,12 +114,12 @@ func TestLoadEnv_DevelopmentAutoGeneratesSecret(t *testing.T) {
 	// Clean before test
 	cleanupEnvVars()
 	defer cleanupEnvVars()
-	
+
 	// This test verifies that development environment auto-generates JWT_SECRET
 	t.Setenv("APP_ENV", "development")
-	
-	LoadEnv()
-	
+
+	loadEnvForTest(t)
+
 	// Verify JWT_SECRET is generated and not empty
 	assert.NotEmpty(t, Config.JWTSecret)
 	assert.NotEqual(t, "defaultsecret", Config.JWTSecret)
@@ -130,13 +131,13 @@ func TestLoadEnv_DevelopmentWithProvidedSecret(t *testing.T) {
 	// Clean before test
 	cleanupEnvVars()
 	defer cleanupEnvVars()
-	
+
 	// This test verifies that provided JWT_SECRET is used in development
 	t.Setenv("APP_ENV", "development")
 	t.Setenv("JWT_SECRET", "my-custom-secret")
-	
-	LoadEnv()
-	
+
+	loadEnvForTest(t)
+
 	// Verify provided secret is used
 	assert.Equal(t, "my-custom-secret", Config.JWTSecret)
 }
@@ -145,7 +146,7 @@ func TestLoadEnv_ProductionRequiredVars(t *testing.T) {
 	// Clean before test
 	cleanupEnvVars()
 	defer cleanupEnvVars()
-	
+
 	// Test production environment with all required variables set
 	t.Setenv("APP_ENV", "production")
 	t.Setenv("DB_HOST", "prod-db-host")
@@ -154,7 +155,7 @@ func TestLoadEnv_ProductionRequiredVars(t *testing.T) {
 	t.Setenv("JWT_SECRET", "prod-jwt-secret")
 	setProductionMailVars(t)
 
-	LoadEnv()
+	loadEnvForTest(t)
 
 	// Verify required vars are loaded
 	assert.Equal(t, "prod-db-host", Config.DBHost)
@@ -170,7 +171,7 @@ func TestLoadEnv_ProductionWithOptionalDefaults(t *testing.T) {
 	// Clean before test
 	cleanupEnvVars()
 	defer cleanupEnvVars()
-	
+
 	// Test production environment with only required variables
 	t.Setenv("APP_ENV", "production")
 	t.Setenv("DB_HOST", "prod-host")
@@ -180,7 +181,7 @@ func TestLoadEnv_ProductionWithOptionalDefaults(t *testing.T) {
 	setProductionMailVars(t)
 	// Do NOT set DB_PORT and DB_USER - should use defaults
 
-	LoadEnv()
+	loadEnvForTest(t)
 
 	// Verify defaults are used for optional vars
 	assert.Equal(t, "5432", Config.DBPort)
@@ -191,28 +192,28 @@ func TestLoadEnv_ProductionWithOptionalDefaults(t *testing.T) {
 
 func TestGetEnvAsInt_ValidInteger(t *testing.T) {
 	t.Setenv("TEST_INT", "42")
-	
+
 	result := GetEnvAsInt("TEST_INT", 10)
 	assert.Equal(t, 42, result)
 }
 
 func TestGetEnvAsInt_InvalidInteger(t *testing.T) {
 	t.Setenv("TEST_INT", "not-a-number")
-	
+
 	result := GetEnvAsInt("TEST_INT", 10)
 	assert.Equal(t, 10, result) // Should return default value
 }
 
 func TestGetEnvAsInt_MissingEnvVar(t *testing.T) {
 	os.Unsetenv("MISSING_INT")
-	
+
 	result := GetEnvAsInt("MISSING_INT", 25)
 	assert.Equal(t, 25, result) // Should return default value
 }
 
 func TestGetEnvAsDuration_ValidDuration(t *testing.T) {
 	t.Setenv("TEST_DURATION", "30m")
-	
+
 	result := GetEnvAsDuration("TEST_DURATION", "15m")
 	expected, _ := time.ParseDuration("30m")
 	assert.Equal(t, expected, result)
@@ -220,7 +221,7 @@ func TestGetEnvAsDuration_ValidDuration(t *testing.T) {
 
 func TestGetEnvAsDuration_InvalidDuration(t *testing.T) {
 	t.Setenv("TEST_DURATION", "invalid-duration")
-	
+
 	result := GetEnvAsDuration("TEST_DURATION", "15m")
 	expected, _ := time.ParseDuration("15m")
 	assert.Equal(t, expected, result) // Should return default value
@@ -228,7 +229,7 @@ func TestGetEnvAsDuration_InvalidDuration(t *testing.T) {
 
 func TestGetEnvAsDuration_MissingEnvVar(t *testing.T) {
 	os.Unsetenv("MISSING_DURATION")
-	
+
 	result := GetEnvAsDuration("MISSING_DURATION", "1h")
 	expected, _ := time.ParseDuration("1h")
 	assert.Equal(t, expected, result) // Should return default value
@@ -236,7 +237,7 @@ func TestGetEnvAsDuration_MissingEnvVar(t *testing.T) {
 
 func TestIsProduction(t *testing.T) {
 	defer cleanupEnvVars()
-	
+
 	// Test production environment
 	t.Setenv("APP_ENV", "production")
 	t.Setenv("DB_HOST", "prod-host")
@@ -244,33 +245,33 @@ func TestIsProduction(t *testing.T) {
 	t.Setenv("DB_NAME", "prod-db")
 	t.Setenv("JWT_SECRET", "prod-secret")
 	setProductionMailVars(t)
-	LoadEnv()
+	loadEnvForTest(t)
 	assert.True(t, IsProduction())
 	assert.False(t, IsDevelopment())
-	
+
 	// Test development environment
 	cleanupEnvVars()
 	t.Setenv("APP_ENV", "development")
-	LoadEnv()
+	loadEnvForTest(t)
 	assert.False(t, IsProduction())
 	assert.True(t, IsDevelopment())
-	
+
 	// Test other environment
 	cleanupEnvVars()
 	t.Setenv("APP_ENV", "testing")
-	LoadEnv()
+	loadEnvForTest(t)
 	assert.False(t, IsProduction())
 	assert.False(t, IsDevelopment())
 }
 
 func TestIsDevelopment(t *testing.T) {
 	defer cleanupEnvVars()
-	
+
 	// Test development environment
 	t.Setenv("APP_ENV", "development")
-	LoadEnv()
+	loadEnvForTest(t)
 	assert.True(t, IsDevelopment())
-	
+
 	// Test non-development environment
 	cleanupEnvVars()
 	t.Setenv("APP_ENV", "production")
@@ -279,7 +280,7 @@ func TestIsDevelopment(t *testing.T) {
 	t.Setenv("DB_NAME", "prod-db")
 	t.Setenv("JWT_SECRET", "prod-secret")
 	setProductionMailVars(t)
-	LoadEnv()
+	loadEnvForTest(t)
 	assert.False(t, IsDevelopment())
 }
 
@@ -287,12 +288,12 @@ func TestConfigPersistence(t *testing.T) {
 	// Clean before test
 	cleanupEnvVars()
 	defer cleanupEnvVars()
-	
+
 	// Test that Config is properly set and accessible globally
 	t.Setenv("DB_HOST", "test-persistence")
 	t.Setenv("APP_ENV", "development")
-	LoadEnv()
-	
+	loadEnvForTest(t)
+
 	// Config should be accessible globally
 	assert.NotNil(t, Config)
 	assert.Equal(t, "test-persistence", Config.DBHost)
@@ -302,19 +303,48 @@ func TestJWTConfiguration(t *testing.T) {
 	// Clean before test
 	cleanupEnvVars()
 	defer cleanupEnvVars()
-	
+
 	// Test JWT-specific configuration
 	t.Setenv("JWT_SECRET", "super-secret-key")
 	t.Setenv("JWT_ISSUER", "test-auth-service")
 	t.Setenv("APP_ENV", "development")
-	
-	LoadEnv()
-	
+
+	loadEnvForTest(t)
+
 	assert.Equal(t, "super-secret-key", Config.JWTSecret)
 	assert.Equal(t, "test-auth-service", Config.JWTIssuer)
 }
 
 // Helper function to clean up environment variables after tests
+// Production reports every missing variable in one error, so a misconfigured
+// deployment is not fixed one restart at a time.
+func TestLoadEnv_ProductionReportsAllMissingRequiredVars(t *testing.T) {
+	cleanupEnvVars()
+	defer cleanupEnvVars()
+
+	t.Setenv("APP_ENV", "production")
+
+	cfg, err := LoadEnv()
+
+	require.Error(t, err)
+	assert.Nil(t, cfg)
+	for _, key := range []string{
+		"DB_HOST", "DB_PASSWORD", "DB_NAME", "JWT_SECRET",
+		"PASSWORD_RESET_BASE_URL", "SMTP_HOST", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM",
+	} {
+		assert.Contains(t, err.Error(), key)
+	}
+}
+
+// loadEnvForTest loads the configuration and stops the test if it cannot, since
+// the assertions that follow read the Config global.
+func loadEnvForTest(t *testing.T) {
+	t.Helper()
+
+	_, err := LoadEnv()
+	require.NoError(t, err)
+}
+
 // setProductionMailVars sets the password-reset and SMTP variables that
 // production requires, so tests exercising other production settings do not
 // trip the fail-fast check.
@@ -336,11 +366,11 @@ func cleanupEnvVars() {
 		"PASSWORD_RESET_BASE_URL",
 		"SMTP_HOST", "SMTP_PORT", "SMTP_USERNAME", "SMTP_PASSWORD", "SMTP_FROM",
 	}
-	
+
 	for _, envVar := range envVars {
 		os.Unsetenv(envVar)
 	}
-	
+
 	// Reset Config to nil to ensure clean state
 	Config = nil
 }
@@ -351,16 +381,16 @@ func BenchmarkLoadEnv(b *testing.B) {
 	b.Setenv("DB_HOST", "benchmark-host")
 	b.Setenv("JWT_SECRET", "benchmark-secret")
 	b.Setenv("APP_ENV", "development")
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		LoadEnv()
+		_, _ = LoadEnv()
 	}
 }
 
 func BenchmarkGetEnvAsInt(b *testing.B) {
 	b.Setenv("BENCHMARK_INT", "42")
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		GetEnvAsInt("BENCHMARK_INT", 10)
@@ -369,7 +399,7 @@ func BenchmarkGetEnvAsInt(b *testing.B) {
 
 func BenchmarkGetEnvAsDuration(b *testing.B) {
 	b.Setenv("BENCHMARK_DURATION", "30m")
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		GetEnvAsDuration("BENCHMARK_DURATION", "15m")

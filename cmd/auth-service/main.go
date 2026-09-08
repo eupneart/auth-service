@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -26,19 +25,26 @@ import (
 const devResetMailbox = ".reset-links.log"
 
 func main() {
-	// Initialize configuration using your env utility
-	cfg := env.LoadEnv()
-
-	// Initialize structured logger with appropriate level
-	logLevel := slog.LevelInfo
-	if env.IsDevelopment() {
-		logLevel = slog.LevelDebug
-	}
-
+	// The logger is built before the configuration is read so that a failure to
+	// read it is reported on the same JSON stream as everything else. The level
+	// is only known afterwards, so it is held in a LevelVar and raised once the
+	// environment is known.
+	var logLevel slog.LevelVar
 	logger := slog.New(logging.NewHandler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: logLevel,
+		Level: &logLevel,
 	})))
 	slog.SetDefault(logger)
+
+	// Initialize configuration using your env utility
+	cfg, err := env.LoadEnv()
+	if err != nil {
+		logger.Error("Failed to load configuration", slog.String("error", err.Error()))
+		os.Exit(1)
+	}
+
+	if env.IsDevelopment() {
+		logLevel.Set(slog.LevelDebug)
+	}
 
 	logger.Info("Starting authentication service",
 		slog.String("app_env", cfg.AppEnv),
@@ -48,7 +54,7 @@ func main() {
 	conn := db.ConnectToDB(cfg)
 	if conn == nil {
 		logger.Error("Can't connect to Postgres!")
-		log.Panic("Can't connect to Postgres!")
+		os.Exit(1)
 	}
 	logger.Info("Successfully connected to database")
 
@@ -148,9 +154,8 @@ func main() {
 		slog.String("address", srv.Addr),
 		slog.String("version", "1.0.0"))
 
-	err := srv.ListenAndServe()
-	if err != nil {
+	if err := srv.ListenAndServe(); err != nil {
 		logger.Error("Server failed to start", slog.String("error", err.Error()))
-		log.Panic(err)
+		os.Exit(1)
 	}
 }

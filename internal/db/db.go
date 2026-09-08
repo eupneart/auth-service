@@ -2,7 +2,7 @@ package db
 
 import (
 	"database/sql"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/eupneart/auth-service/pkg/env"
@@ -11,21 +11,21 @@ import (
 const maxRetries = 10
 
 func ConnectToDB(cfg *env.EnvConfig) *sql.DB {
-	dsn := cfg.ToDSN() 
+	dsn := cfg.ToDSN()
 
 	for retries := 0; retries < maxRetries; retries++ {
 		connection, err := openDB(dsn)
 		if err == nil {
-			log.Println("Connected to Postgres!")
+			slog.Info("Connected to Postgres!")
 			return connection
-    }
+		}
 
-    log.Printf("Postgres not ready, attempt %d/%d: %v", retries+1, maxRetries, err)
-    time.Sleep(time.Duration(retries+1) * time.Second)
-  }
+		slog.Warn("Postgres not ready", "attempt", retries+1, "max_attempts", maxRetries, "error", err)
+		time.Sleep(time.Duration(retries+1) * time.Second)
+	}
 
-  log.Printf("failed to connect to Postgres after %d attempts", maxRetries)
-  return nil 
+	slog.Error("failed to connect to Postgres", "attempts", maxRetries)
+	return nil
 }
 
 func openDB(dsn string) (*sql.DB, error) {
