@@ -259,10 +259,10 @@ func TestUserService_PasswordMatches(t *testing.T) {
 // Repository error paths
 // ----------------------------------------------------------------------------
 
-// bcryptMaxInputPassword is longer than bcrypt's 72-byte input limit but still
-// within the 128 characters IsValidPassword accepts, so it reaches the hash call
-// and fails there.
-const bcryptMaxInputPassword = "Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!"
+// overLongPassword exceeds bcrypt's 72-byte input limit. IsValidPassword now
+// rejects it, but UserService.Insert hashes without validating first, so it
+// still reaches the hash call there.
+const overLongPassword = "Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!Aa1!"
 
 func TestUserService_GetAll_RepoError(t *testing.T) {
 	mockRepo := new(MockUserRepo)
@@ -343,7 +343,7 @@ func TestUserService_Insert_PasswordTooLongToHash(t *testing.T) {
 	mockRepo := new(MockUserRepo)
 
 	id, err := New(mockRepo).Insert(context.Background(), models.User{
-		Email: "user@example.com", Password: bcryptMaxInputPassword,
+		Email: "user@example.com", Password: overLongPassword,
 	})
 
 	assert.Error(t, err)
@@ -370,15 +370,17 @@ func TestUserService_ResetPassword_RepoError(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestUserService_ResetPassword_PasswordTooLongToHash(t *testing.T) {
+// A password over bcrypt's input limit is caught by strength validation, so the
+// caller gets a rejection it can act on rather than a hashing failure.
+func TestUserService_ResetPassword_RejectsOverLongPassword(t *testing.T) {
 	mockRepo := new(MockUserRepo)
 
 	err := New(mockRepo).ResetPassword(context.Background(), &models.User{
-		ID: 42, Password: bcryptMaxInputPassword,
+		ID: 42, Password: overLongPassword,
 	})
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to hash password")
+	assert.Contains(t, err.Error(), "password does not meet strength requirements")
 	mockRepo.AssertNotCalled(t, "UpdatePassword", mock.Anything, mock.Anything, mock.Anything)
 }
 

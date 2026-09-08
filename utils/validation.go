@@ -38,10 +38,16 @@ func IsValidEmail(email string) bool {
 	return true
 }
 
+// maxPasswordLen is bcrypt's maximum input length. It is a byte count, not a
+// character count, so a password of multi-byte runes reaches it sooner.
+// Enforcing it here keeps an over-long password a validation error the caller
+// can act on, rather than a hashing failure surfacing as an internal error.
+const maxPasswordLen = 72
+
 // IsValidPassword validates password strength with comprehensive rules
 func IsValidPassword(password string) bool {
 	// Basic length check
-	if len(password) < 8 || len(password) > 128 {
+	if len(password) < 8 || len(password) > maxPasswordLen {
 		return false
 	}
 

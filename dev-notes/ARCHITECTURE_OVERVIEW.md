@@ -1135,7 +1135,7 @@ Why parameterized:
 
 2. LENGTH VALIDATION
    - Email: 3-254 characters
-   - Password: 8-128 characters
+   - Password: 8-72 bytes (bcrypt's input limit)
    - Names: 1-100 characters
 
 3. REQUIRED FIELD VALIDATION
