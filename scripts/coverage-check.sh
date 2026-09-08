@@ -71,7 +71,7 @@ function report(name, cov, stmts,    pct, floor, status) {
 
 # Packages alphabetically, the aggregate last.
 {
-    echo "$REPORT" | grep -v '^total|' | sort
+    echo "$REPORT" | grep -v '^total|' | sort -t'|' -k1,1
     echo "$REPORT" | grep '^total|'
 } | awk -F'|' '{
     if ($4 == "FAIL")
