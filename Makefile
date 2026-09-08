@@ -1,4 +1,4 @@
-.PHONY: build run test coverage lint fmt migrate-up migrate-down docker-build clean help
+.PHONY: build run test coverage coverage-check lint fmt migrate-up migrate-down docker-build clean help
 
 # Entrypoints (cmd), the database bootstrap (internal/db) and thin helpers
 # (utils) are exercised through the service and its integration tests, not
@@ -13,6 +13,7 @@ help:
 	@echo "  make run            Run auth-service locally"
 	@echo "  make test           Run all tests with race detection"
 	@echo "  make coverage       Generate HTML coverage report"
+	@echo "  make coverage-check Fail if any package is below its coverage minimum"
 	@echo "  make lint           Run linter (go vet and go fmt check)"
 	@echo "  make fmt            Format all Go code"
 	@echo "  make migrate-up     Apply pending database migrations"
@@ -40,6 +41,9 @@ coverage:
 	@go tool cover -html=coverage.out -o coverage.html
 	@go tool cover -func=coverage.out | tail -1
 	@echo "✓ Coverage report generated: coverage.html"
+
+coverage-check:
+	@COVERAGE_PKGS="$(COVERAGE_PKGS)" ./scripts/coverage-check.sh
 
 lint:
 	@echo "Running linter..."

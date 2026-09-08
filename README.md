@@ -67,6 +67,7 @@ The recovery endpoints allow 10 requests per IP per minute.
 | `make run`          | Run the service locally                  |
 | `make test`         | Run all tests with race detection        |
 | `make coverage`     | Print the total and write `coverage.html` |
+| `make coverage-check` | Fail if a package is below its minimum |
 | `make lint`         | `go vet` plus a `gofmt` check            |
 | `make fmt`          | Format the code                          |
 | `make migrate-up`   | Apply pending migrations                 |
@@ -125,6 +126,10 @@ weighted by risk:
 | `pkg/`                                    | 80%     |
 | `internal/repositories`, `internal/logging` | 70%   |
 | `internal/mail`                           | 50%     |
+
+`make coverage-check` enforces this table and exits non-zero when a package
+falls below its minimum. The machine-readable copy of the thresholds lives in
+`scripts/coverage-check.sh`; change both together.
 
 The percentage is a floor, not a goal: 85% on `internal/services` means little if
 the uncovered part is a token expiry check. Every authentication and
