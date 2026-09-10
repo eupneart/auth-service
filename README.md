@@ -188,6 +188,7 @@ The recovery endpoints allow 10 requests per IP per minute.
 | `make build`        | Build the Linux binary into `bin/`       |
 | `make run`          | Run the service locally                  |
 | `make test`         | Run all tests with race detection        |
+| `make test-integration` | Run only `tests/integration`, with race detection |
 | `make coverage`     | Print the total and write `coverage.html` |
 | `make coverage-check` | Fail if a package is below its minimum |
 | `make lint`         | `go vet` plus a `gofmt` check            |
@@ -227,6 +228,34 @@ go test ./internal/services/   # a single package
 
 The suite runs without external services: repositories are covered with `sqlmock`
 and the tests under `tests/integration` exercise the HTTP layer in memory.
+
+### Integration tests
+
+`tests/integration/` drives the real chi router through `httptest`, so a request
+travels the whole middleware → handler → service path. Only the outermost
+dependencies are substituted — the user repository, token store, token service
+and mailer are in-memory fakes.
+
+```bash
+make test               # runs them with everything else
+make test-integration   # just this package
+```
+
+Both carry `-race`; the integration tests are the ones most likely to need it,
+since `POST /password/forgot` does its work on a detached goroutine.
+
+They cover the token lifecycle (refresh, validate, `/me`, logout, reuse of a
+revoked token) and the recovery flows: link issuing, that only the token hash is
+stored, single-use redemption, expired tokens, session revocation on both reset
+and change, and identical responses for known and unknown addresses.
+
+**They do not connect to a database, deliberately.** What this layer is
+responsible for is HTTP and service wiring, which fakes cover completely and in
+milliseconds; a live Postgres would make `make test` depend on Docker without
+testing anything more about it. SQL correctness belongs instead in a separate
+build-tagged suite at the repository level, kept out of the default run — worth
+adding once more than one person writes migrations, or a second deployed
+environment exists.
 
 ## Coverage
 

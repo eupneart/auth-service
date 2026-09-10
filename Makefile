@@ -1,4 +1,4 @@
-.PHONY: build run test coverage coverage-check lint fmt migrate-up migrate-down docker-build clean help
+.PHONY: build run test test-integration coverage coverage-check lint fmt migrate-up migrate-down docker-build clean help
 
 # Entrypoints (cmd), the database bootstrap (internal/db) and thin helpers
 # (utils) are exercised through the service and its integration tests, not
@@ -9,17 +9,18 @@ COVERAGE_PKGS = $(shell go list ./... | grep -Ev "/(cmd/|internal/db$$|utils$$)"
 help:
 	@echo "Auth Service Makefile Commands:"
 	@echo ""
-	@echo "  make build          Build binary for Linux"
-	@echo "  make run            Run auth-service locally"
-	@echo "  make test           Run all tests with race detection"
-	@echo "  make coverage       Generate HTML coverage report"
-	@echo "  make coverage-check Fail if any package is below its coverage minimum"
-	@echo "  make lint           Run linter (go vet and go fmt check)"
-	@echo "  make fmt            Format all Go code"
-	@echo "  make migrate-up     Apply pending database migrations"
-	@echo "  make migrate-down   Roll back the last applied migration"
-	@echo "  make docker-build   Build Docker image"
-	@echo "  make clean          Remove build artifacts"
+	@echo "  make build            Build binary for Linux"
+	@echo "  make run              Run auth-service locally"
+	@echo "  make test             Run all tests with race detection"
+	@echo "  make test-integration Run only tests/integration, with race detection"
+	@echo "  make coverage         Generate HTML coverage report"
+	@echo "  make coverage-check   Fail if any package is below its coverage minimum"
+	@echo "  make lint             Run linter (go vet and go fmt check)"
+	@echo "  make fmt              Format all Go code"
+	@echo "  make migrate-up       Apply pending database migrations"
+	@echo "  make migrate-down     Roll back the last applied migration"
+	@echo "  make docker-build     Build Docker image"
+	@echo "  make clean            Remove build artifacts"
 	@echo ""
 
 build:
@@ -34,6 +35,11 @@ run:
 test:
 	@echo "Running tests..."
 	@./scripts/test.sh
+
+# Carries -race so the shortcut matches what `make test` would have run.
+test-integration:
+	@echo "Running integration tests..."
+	@go test -race ./tests/integration/
 
 coverage:
 	@echo "Generating coverage report..."
