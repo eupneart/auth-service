@@ -26,6 +26,13 @@ WORKDIR /app
 
 COPY --from=builder /out/auth-service /app/auth-service
 
+# The development file mailer appends reset links to this file, and the service
+# runs unprivileged in a root-owned WORKDIR, so it cannot create it itself.
+# Granting only the file keeps /app root-owned, so the binary stays unreplaceable.
+# Never reached in production, where SMTP is used instead.
+RUN touch /app/.reset-links.log \
+    && chown app:app /app/.reset-links.log
+
 USER app
 
 EXPOSE 8080
