@@ -21,18 +21,101 @@ Go 1.23 · chi v5 · PostgreSQL (pgx) · golang-jwt v5 · slog · testify / sqlm
 Requires Go 1.23+ and a reachable PostgreSQL instance.
 
 ```bash
-cp .env.example .env.development   # adjust the values
+cp .env.example .env               # then adjust the values below
 make migrate-up                    # apply database migrations
-make run                           # start the service (default port 8080)
+make run                           # start the service
 ```
 
 `GET /ping` answers once the service is up.
 
+Three values in `.env.example` are set for running **inside** a container network
+and need adjusting for a local run:
+
+| Variable  | Example value | Set to        | Why                                              |
+| --------- | ------------- | ------------- | ------------------------------------------------ |
+| `DB_HOST` | `postgres`    | `localhost`   | `postgres` is a container name; it does not resolve on the host |
+| `DB_PORT` | `5432`        | `5433`        | the port Postgres is published on (see below)    |
+| `APP_PORT`| `80`          | `8080`        | binding a port below 1024 requires root          |
+
+The file **must** be named `.env`. `pkg/env` reads `.env.<APP_ENV>` only when
+`APP_ENV` is already set in the environment, and otherwise reads `.env` — so
+copying to `.env.development` without also exporting `APP_ENV=development` leaves
+the service with no configuration at all. If you prefer a per-environment file,
+export the variable first:
+
+```bash
+export APP_ENV=development         # then .env.development is used instead
+```
+
+> **Migrations are not applied automatically.** Skipping `make migrate-up` leaves
+> `password_reset_tokens` missing, and `POST /password/forgot` still answers `202`
+> while failing internally — the failure appears only in the service logs.
+
+## Running with Docker Compose
+
+Optional, and self-contained: this brings up the service and its database only.
+Save it as `docker-compose.yml` in this directory.
+
+```yaml
+services:
+  auth-service:
+    build:
+      context: .
+      dockerfile: auth-service.dockerfile
+    ports:
+      - "8081:8080"          # host:container — the container side must equal APP_PORT
+    env_file:
+      - .env                 # no .env is baked into the image; it is injected here
+    environment:
+      # Override the two values .env holds for host use. Inside the network the
+      # database answers on its service name and its own port.
+      DB_HOST: postgres
+      DB_PORT: 5432
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:14.2
+    ports:
+      - "5433:5432"          # published so migrations can run from the host
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password   # must match DB_PASSWORD in .env
+      POSTGRES_DB: users            # must match DB_NAME in .env
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres-data:
+```
+
+```bash
+docker compose up --build -d
+make migrate-up                 # from the host, against localhost:5433
+curl -i http://localhost:8081/ping
+```
+
+Because `environment:` overrides `env_file:`, one `.env` serves both paths: it
+keeps `DB_HOST=localhost` / `DB_PORT=5433` for host-run commands such as
+`make migrate-up` and `make run`, while the container gets `postgres:5432`.
+
+Without `env_file:` the container starts with no database configuration, falls
+back to `localhost` with an empty database name, and crash-loops on `restart`.
+
 ## Configuration
 
-Configuration comes from the environment. `pkg/env` loads `.env.<APP_ENV>` (for
-example `.env.development`) and falls back to `.env`, then to the process
-environment; see `.env.example` for the full list.
+Configuration comes from the environment. `pkg/env` loads a single file: it reads
+`.env.<APP_ENV>` when `APP_ENV` is set in the environment, and `.env` otherwise.
+There is **no fallback between the two** — if the chosen file is missing, the
+service continues with the process environment alone. Values already present in
+the environment always win, so `DB_HOST=localhost make migrate-up` overrides the
+file without editing it. See `.env.example` for the full list.
 
 In development every value has a default and a random `JWT_SECRET` is generated
 at startup. In production the service refuses to start without `DB_HOST`,
@@ -71,9 +154,18 @@ The recovery endpoints allow 10 requests per IP per minute.
 | `make lint`         | `go vet` plus a `gofmt` check            |
 | `make fmt`          | Format the code                          |
 | `make migrate-up`   | Apply pending migrations                 |
-| `make migrate-down` | Roll back the last migration             |
+| `make migrate-down` | Roll back the last applied migration     |
 | `make docker-build` | Build the Docker image                   |
 | `make clean`        | Remove build and coverage artifacts      |
+
+`migrate-up` and `migrate-down` run on the host and resolve their connection the
+same way the service does, so they need `.env` to point at a reachable database.
+When Postgres runs in a container, override the two values inline rather than
+editing the file:
+
+```bash
+DB_HOST=localhost DB_PORT=5433 make migrate-up
+```
 
 ## Project layout
 
