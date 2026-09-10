@@ -125,6 +125,45 @@ at startup. In production the service refuses to start without `DB_HOST`,
 Never commit real secrets: `.env`, `.env.development` and `.env.production` are
 git-ignored.
 
+## Migrations
+
+SQL migrations live in `migrations/` and are applied by `cmd/migrate`, a small
+in-repo tool with no external migration dependency:
+
+```bash
+make migrate-up      # apply everything not yet applied
+make migrate-down    # roll back the most recent migration only
+```
+
+Both resolve the database connection exactly like the service does, through
+`pkg/env` — so the rules in [Configuration](#configuration) apply, including
+overriding `DB_HOST` inline when Postgres runs in a container.
+
+**Naming.** Each migration is a pair, `<version>_<name>.up.sql` and
+`<version>_<name>.down.sql`. The numeric prefix is the version and sets the
+order: files are sorted numerically rather than alphabetically, so `010`
+correctly follows `002`.
+
+**Tracking.** Applied versions are recorded in `schema_migrations`
+(`version`, `applied_at`), created automatically on first run. `up` applies every
+file whose version is missing from that table; `down` rolls back only the highest
+recorded version, so a mistaken invocation costs one migration instead of the
+whole schema.
+
+**Atomicity.** Each file and its bookkeeping row commit in one transaction, so a
+failure can never leave the schema changed while the version row claims it
+landed. A single file may hold several semicolon-separated statements.
+
+**Writing one.** Prefer `IF NOT EXISTS` so a file stays re-runnable. Note that
+`ALTER TABLE ... ADD CONSTRAINT` has no such form — declare `CHECK` and foreign
+key constraints inline in `CREATE TABLE`, as `001_initial_schema.up.sql` does.
+
+The `-path` flag points the tool at a different directory (default `migrations`):
+
+```bash
+go run ./cmd/migrate -path ./migrations up
+```
+
 ## API
 
 | Method | Path               | Auth   | Description                                      |
