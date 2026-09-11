@@ -6,7 +6,8 @@ user registration, login, JWT issuing/validation and password recovery.
 ## Features
 
 - Registration and login with bcrypt password hashing
-- JWT access and refresh tokens, with revocation and periodic cleanup of expired metadata
+- JWT access and refresh tokens, with session-scoped revocation on logout and
+  periodic cleanup of expired metadata
 - Protected routes via `Authorization: Bearer <token>` middleware
 - Password reset by email (SMTP in production, local file mailbox in development)
 - Per-IP rate limiting on the recovery endpoints
