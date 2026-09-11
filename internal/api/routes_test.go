@@ -23,6 +23,9 @@ func (routeTokenServiceStub) RefreshAccessToken(context.Context, string) (string
 	return "access-token", nil
 }
 func (routeTokenServiceStub) RevokeToken(context.Context, string) error { return nil }
+func (routeTokenServiceStub) RevokeSession(context.Context, *models.Claims) error {
+	return nil
+}
 func (routeTokenServiceStub) GetTokenMetadata(context.Context, string) (*models.TokenMetadata, error) {
 	return nil, nil
 }

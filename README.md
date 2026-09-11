@@ -175,7 +175,7 @@ go run ./cmd/migrate -path ./migrations up
 | POST   | `/validate`        | –      | Validate an access token                         |
 | POST   | `/password/forgot` | –      | Send a reset link (rate limited)                 |
 | POST   | `/password/reset`  | –      | Reset a password with a reset token (rate limited) |
-| POST   | `/logout`          | Bearer | Revoke the current access token                  |
+| POST   | `/logout`          | Bearer | End the session, revoking its access and refresh tokens |
 | GET    | `/me`              | Bearer | Current user profile                             |
 | POST   | `/password/change` | Bearer | Change the password of the logged-in user        |
 
@@ -245,7 +245,8 @@ Both carry `-race`; the integration tests are the ones most likely to need it,
 since `POST /password/forgot` does its work on a detached goroutine.
 
 They cover the token lifecycle (refresh, validate, `/me`, logout, reuse of a
-revoked token) and the recovery flows: link issuing, that only the token hash is
+revoked token, logout revoking the whole session while leaving other sessions
+signed in) and the recovery flows: link issuing, that only the token hash is
 stored, single-use redemption, expired tokens, session revocation on both reset
 and change, and identical responses for known and unknown addresses.
 

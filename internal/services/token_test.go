@@ -20,20 +20,22 @@ import (
 type fakeTokenStore struct {
 	saved           []*models.TokenMetadata
 	revokedIDs      []string
+	revokedSessions []string
 	updatedLastUsed []string
 	revokedUsers    []int64
 	cleanupCalls    int
 	metadata        *models.TokenMetadata
 
-	revoked       bool
-	isRevokedErr  error
-	saveErr       error
-	saveErrAfter  int // saves that succeed before saveErr is returned
-	revokeErr     error
-	updateUsedErr error
-	metadataErr   error
-	revokeAllErr  error
-	cleanupErr    error
+	revoked          bool
+	isRevokedErr     error
+	saveErr          error
+	saveErrAfter     int // saves that succeed before saveErr is returned
+	revokeErr        error
+	revokeSessionErr error
+	updateUsedErr    error
+	metadataErr      error
+	revokeAllErr     error
+	cleanupErr       error
 }
 
 func (f *fakeTokenStore) SaveTokenMetadata(_ context.Context, m *models.TokenMetadata) error {
@@ -57,6 +59,13 @@ func (f *fakeTokenStore) RevokeToken(_ context.Context, id string) error {
 	return nil
 }
 func (f *fakeTokenStore) RevokeTokenByID(context.Context, string) error { return nil }
+func (f *fakeTokenStore) RevokeSession(_ context.Context, sessionID string) error {
+	if f.revokeSessionErr != nil {
+		return f.revokeSessionErr
+	}
+	f.revokedSessions = append(f.revokedSessions, sessionID)
+	return nil
+}
 func (f *fakeTokenStore) RevokeAllTokensForUser(_ context.Context, userID int64) error {
 	if f.revokeAllErr != nil {
 		return f.revokeAllErr
@@ -166,6 +175,42 @@ func TestTokenService_GenerateTokens_HappyPath(t *testing.T) {
 	assert.Equal(t, models.TokenTypeAccess, claims.TokenType)
 }
 
+// The access and refresh tokens issued together must share one session id. It is
+// what lets logout revoke the refresh token it never sees.
+func TestTokenService_GenerateTokens_SharesOneSessionID(t *testing.T) {
+	store := &fakeTokenStore{}
+	svc := newTestTokenService(store, &fakeUserRepo{})
+
+	access, refresh, err := svc.GenerateTokens(context.Background(), testUser())
+	require.NoError(t, err)
+
+	accessClaims, err := svc.ValidateToken(context.Background(), access)
+	require.NoError(t, err)
+	refreshClaims, err := svc.ValidateToken(context.Background(), refresh)
+	require.NoError(t, err)
+
+	assert.NotEmpty(t, accessClaims.SessionID)
+	assert.Equal(t, accessClaims.SessionID, refreshClaims.SessionID)
+
+	require.Len(t, store.saved, 2)
+	assert.Equal(t, accessClaims.SessionID, store.saved[0].SessionID)
+	assert.Equal(t, accessClaims.SessionID, store.saved[1].SessionID)
+}
+
+// Two logins are two sessions, so ending one must not end the other.
+func TestTokenService_GenerateTokens_SessionIDIsPerLogin(t *testing.T) {
+	store := &fakeTokenStore{}
+	svc := newTestTokenService(store, &fakeUserRepo{})
+
+	_, _, err := svc.GenerateTokens(context.Background(), testUser())
+	require.NoError(t, err)
+	_, _, err = svc.GenerateTokens(context.Background(), testUser())
+	require.NoError(t, err)
+
+	require.Len(t, store.saved, 4)
+	assert.NotEqual(t, store.saved[0].SessionID, store.saved[2].SessionID)
+}
+
 func TestTokenService_GenerateTokens_StoreError(t *testing.T) {
 	store := &fakeTokenStore{saveErr: assert.AnError}
 	svc := newTestTokenService(store, &fakeUserRepo{})
@@ -256,6 +301,27 @@ func TestTokenService_RefreshAccessToken_UserLookupError(t *testing.T) {
 	require.Error(t, err)
 }
 
+// A rotated access token stays in the session it came from, so logging out with
+// it still revokes the refresh token that minted it.
+func TestTokenService_RefreshAccessToken_KeepsTheSession(t *testing.T) {
+	store := &fakeTokenStore{}
+	svc := newTestTokenService(store, &fakeUserRepo{user: testUser()})
+
+	claims := baseClaims(models.TokenTypeRefresh, time.Now().Add(time.Hour))
+	claims.SessionID = "session-1"
+	refresh := signClaims(t, claims, testJWTSecret)
+
+	access, err := svc.RefreshAccessToken(context.Background(), refresh)
+	require.NoError(t, err)
+
+	accessClaims, err := svc.ValidateToken(context.Background(), access)
+	require.NoError(t, err)
+	assert.Equal(t, "session-1", accessClaims.SessionID)
+
+	require.Len(t, store.saved, 1)
+	assert.Equal(t, "session-1", store.saved[0].SessionID)
+}
+
 // ----------------------------------------------------------------------------
 // RevokeToken
 // ----------------------------------------------------------------------------
@@ -275,6 +341,45 @@ func TestTokenService_RevokeToken_BadToken(t *testing.T) {
 
 	err := svc.RevokeToken(context.Background(), "not-a-jwt")
 	require.Error(t, err)
+}
+
+// ----------------------------------------------------------------------------
+// RevokeSession
+// ----------------------------------------------------------------------------
+
+func TestTokenService_RevokeSession_RevokesTheWholeSession(t *testing.T) {
+	store := &fakeTokenStore{}
+	svc := newTestTokenService(store, &fakeUserRepo{})
+
+	claims := baseClaims(models.TokenTypeAccess, time.Now().Add(time.Hour))
+	claims.SessionID = "session-1"
+
+	require.NoError(t, svc.RevokeSession(context.Background(), claims))
+	assert.Equal(t, []string{"session-1"}, store.revokedSessions)
+	assert.Empty(t, store.revokedIDs, "the session covers the token, so it is not revoked separately")
+}
+
+// Tokens issued before tokens carried a session id still have to log out. The
+// single token is the only thing left to identify.
+func TestTokenService_RevokeSession_FallsBackForTokensWithoutASession(t *testing.T) {
+	store := &fakeTokenStore{}
+	svc := newTestTokenService(store, &fakeUserRepo{})
+
+	claims := baseClaims(models.TokenTypeAccess, time.Now().Add(time.Hour))
+
+	require.NoError(t, svc.RevokeSession(context.Background(), claims))
+	assert.Equal(t, []string{"token-id-1"}, store.revokedIDs)
+	assert.Empty(t, store.revokedSessions)
+}
+
+func TestTokenService_RevokeSession_StoreError(t *testing.T) {
+	store := &fakeTokenStore{revokeSessionErr: assert.AnError}
+	svc := newTestTokenService(store, &fakeUserRepo{})
+
+	claims := baseClaims(models.TokenTypeAccess, time.Now().Add(time.Hour))
+	claims.SessionID = "session-1"
+
+	require.Error(t, svc.RevokeSession(context.Background(), claims))
 }
 
 // ----------------------------------------------------------------------------

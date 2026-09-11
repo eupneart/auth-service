@@ -11,7 +11,7 @@ import (
 )
 
 const tokenColumns = `
-  id, user_id, token_type, device_id, client_id,
+  id, user_id, token_type, session_id, device_id, client_id,
   is_revoked, created_at, expires_at, last_used_at
 `
 
@@ -25,13 +25,14 @@ func NewTokenRepo(db *sql.DB) TokenStore {
 
 // SaveTokenMetadata stores metadata for a token
 func (r *TokenRepo) SaveTokenMetadata(ctx context.Context, metadata *models.TokenMetadata) error {
-	stmt := `INSERT INTO token_metadata (id, user_id, token_type, device_id, client_id, is_revoked, created_at, expires_at, last_used_at) 
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`
+	stmt := `INSERT INTO token_metadata (id, user_id, token_type, session_id, device_id, client_id, is_revoked, created_at, expires_at, last_used_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`
 
 	_, err := r.DB.ExecContext(ctx, stmt,
 		metadata.ID,
 		metadata.UserID,
 		metadata.TokenType,
+		metadata.SessionID,
 		metadata.DeviceID,
 		metadata.ClientID,
 		metadata.IsRevoked,
@@ -154,6 +155,39 @@ func (r *TokenRepo) RevokeToken(ctx context.Context, tokenID string) error {
 // RevokeTokenByID marks a token as revoked by its ID (same as RevokeToken)
 func (r *TokenRepo) RevokeTokenByID(ctx context.Context, tokenID string) error {
 	return r.RevokeToken(ctx, tokenID)
+}
+
+// RevokeSession revokes every token sharing a session id, which is how logout
+// invalidates the access token, its refresh token and any access token rotated
+// from that refresh token in one statement. Zero rows affected is not an error:
+// it means the session was already revoked.
+func (r *TokenRepo) RevokeSession(ctx context.Context, sessionID string) error {
+	stmt := `UPDATE token_metadata SET is_revoked = true WHERE session_id = $1 AND is_revoked = false`
+
+	result, err := r.DB.ExecContext(ctx, stmt, sessionID)
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to revoke session",
+			"error", err,
+			"query", stmt,
+			"session_id", sessionID,
+			"method", "TokenRepo.RevokeSession")
+		return fmt.Errorf("revoking session: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		slog.ErrorContext(ctx, "failed to get rows affected after revoking session",
+			"error", err,
+			"session_id", sessionID,
+			"method", "TokenRepo.RevokeSession")
+		return fmt.Errorf("checking revocation result: %w", err)
+	}
+
+	slog.InfoContext(ctx, "successfully revoked session",
+		"session_id", sessionID,
+		"tokens_revoked", rowsAffected)
+
+	return nil
 }
 
 // RevokeAllTokensForUser revokes all tokens for a specific user
@@ -351,13 +385,14 @@ func (r *TokenRepo) GetTokenCountForUser(ctx context.Context, userID string, tok
 // scanTokenMetadata is a helper function to scan a single row into a TokenMetadata struct.
 func scanTokenMetadata(row *sql.Row) (*models.TokenMetadata, error) {
 	var metadata models.TokenMetadata
-	var deviceID, clientID sql.NullString
+	var sessionID, deviceID, clientID sql.NullString
 	var lastUsedAt sql.NullTime
 
 	err := row.Scan(
 		&metadata.ID,
 		&metadata.UserID,
 		&metadata.TokenType,
+		&sessionID,
 		&deviceID,
 		&clientID,
 		&metadata.IsRevoked,
@@ -370,6 +405,9 @@ func scanTokenMetadata(row *sql.Row) (*models.TokenMetadata, error) {
 	}
 
 	// Handle nullable fields
+	if sessionID.Valid {
+		metadata.SessionID = sessionID.String
+	}
 	if deviceID.Valid {
 		metadata.DeviceID = deviceID.String
 	}
@@ -389,13 +427,14 @@ func scanTokenMetadataRows(ctx context.Context, rows *sql.Rows) ([]models.TokenM
 
 	for rows.Next() {
 		var metadata models.TokenMetadata
-		var deviceID, clientID sql.NullString
+		var sessionID, deviceID, clientID sql.NullString
 		var lastUsedAt sql.NullTime
 
 		if err := rows.Scan(
 			&metadata.ID,
 			&metadata.UserID,
 			&metadata.TokenType,
+			&sessionID,
 			&deviceID,
 			&clientID,
 			&metadata.IsRevoked,
@@ -410,6 +449,9 @@ func scanTokenMetadataRows(ctx context.Context, rows *sql.Rows) ([]models.TokenM
 		}
 
 		// Handle nullable fields
+		if sessionID.Valid {
+			metadata.SessionID = sessionID.String
+		}
 		if deviceID.Valid {
 			metadata.DeviceID = deviceID.String
 		}

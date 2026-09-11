@@ -28,7 +28,8 @@ func (s tokenServiceStub) RefreshAccessToken(context.Context, string) (string, e
 	return "", nil
 }
 
-func (s tokenServiceStub) RevokeToken(context.Context, string) error { return nil }
+func (s tokenServiceStub) RevokeToken(context.Context, string) error           { return nil }
+func (s tokenServiceStub) RevokeSession(context.Context, *models.Claims) error { return nil }
 func (s tokenServiceStub) GetTokenMetadata(context.Context, string) (*models.TokenMetadata, error) {
 	return nil, nil
 }

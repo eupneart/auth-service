@@ -386,19 +386,23 @@ func (h *AuthHandler) Validate(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
-	token, err := middleware.GetTokenFromContext(r)
-	if err != nil {
-		utils.ErrorJSON(w, err, http.StatusUnauthorized)
+	claims := middleware.GetClaimsFromContext(r)
+	if claims == nil {
+		utils.ErrorJSON(w, errors.New("claims not found in context"), http.StatusUnauthorized)
 		return
 	}
 
-	if err := h.TokenService.RevokeToken(r.Context(), token); err != nil {
-		slog.ErrorContext(r.Context(), "failed to revoke token during logout", "error", err)
+	// The whole session goes, not just the presented access token: leaving the
+	// refresh token alive would let the caller mint a new one after logging out.
+	if err := h.TokenService.RevokeSession(r.Context(), claims); err != nil {
+		slog.ErrorContext(r.Context(), "failed to revoke session during logout",
+			"error", err,
+			"user_id", claims.UserID)
 		utils.ErrorJSON(w, errors.New("failed to logout"), http.StatusInternalServerError)
 		return
 	}
 
-	payload := utils.JsonResponse{Error: false, Message: "Successfully logged out"}
+	payload := utils.JsonResponse{Error: false, Message: "Successfully logged out. This session has been ended."}
 	_ = utils.WriteJSON(w, payload, http.StatusOK)
 }
 

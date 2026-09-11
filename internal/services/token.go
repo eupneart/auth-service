@@ -45,6 +45,10 @@ func (s *tokenService) GenerateTokens(ctx context.Context, user *models.User) (a
 	accessTokenID := uuid.New().String()
 	refreshTokenID := uuid.New().String()
 
+	// Both tokens share one session id so logging out revokes the pair, not
+	// only the access token the caller happens to present.
+	sessionID := uuid.New().String()
+
 	// Create access token claims
 	accessClaims := &models.Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
@@ -59,6 +63,7 @@ func (s *tokenService) GenerateTokens(ctx context.Context, user *models.User) (a
 		Email:     user.Email,
 		Role:      user.Role,
 		TokenType: models.TokenTypeAccess,
+		SessionID: sessionID,
 	}
 
 	// Create refresh token claims
@@ -75,6 +80,7 @@ func (s *tokenService) GenerateTokens(ctx context.Context, user *models.User) (a
 		Email:     user.Email,
 		Role:      user.Role,
 		TokenType: models.TokenTypeRefresh,
+		SessionID: sessionID,
 	}
 
 	// Generate access token
@@ -102,6 +108,7 @@ func (s *tokenService) GenerateTokens(ctx context.Context, user *models.User) (a
 		ID:        accessTokenID,
 		UserID:    user.ID,
 		TokenType: models.TokenTypeAccess,
+		SessionID: sessionID,
 		IsRevoked: false,
 		CreatedAt: time.Now(),
 		ExpiresAt: accessClaims.ExpiresAt.Time,
@@ -111,6 +118,7 @@ func (s *tokenService) GenerateTokens(ctx context.Context, user *models.User) (a
 		ID:        refreshTokenID,
 		UserID:    user.ID,
 		TokenType: models.TokenTypeRefresh,
+		SessionID: sessionID,
 		IsRevoked: false,
 		CreatedAt: time.Now(),
 		ExpiresAt: refreshClaims.ExpiresAt.Time,
@@ -136,7 +144,8 @@ func (s *tokenService) GenerateTokens(ctx context.Context, user *models.User) (a
 	s.logger.InfoContext(ctx, "Successfully generated tokens",
 		slog.Int64("user_id", user.ID),
 		slog.String("access_token_id", accessTokenID),
-		slog.String("refresh_token_id", refreshTokenID))
+		slog.String("refresh_token_id", refreshTokenID),
+		slog.String("session_id", sessionID))
 
 	return accessToken, refreshToken, nil
 }
@@ -237,6 +246,9 @@ func (s *tokenService) RefreshAccessToken(ctx context.Context, refreshToken stri
 		Email:     user.Email,
 		Role:      user.Role,
 		TokenType: models.TokenTypeAccess,
+		// Rotation stays inside the session the refresh token belongs to, so a
+		// later logout revokes this token too.
+		SessionID: claims.SessionID,
 	}
 
 	// Generate access token
@@ -254,6 +266,7 @@ func (s *tokenService) RefreshAccessToken(ctx context.Context, refreshToken stri
 		ID:        accessTokenID,
 		UserID:    user.ID,
 		TokenType: models.TokenTypeAccess,
+		SessionID: claims.SessionID,
 		IsRevoked: false,
 		CreatedAt: time.Now(),
 		ExpiresAt: accessClaims.ExpiresAt.Time,
@@ -270,7 +283,8 @@ func (s *tokenService) RefreshAccessToken(ctx context.Context, refreshToken stri
 	s.logger.InfoContext(ctx, "Successfully refreshed access token",
 		slog.Int64("user_id", user.ID),
 		slog.String("new_token_id", accessTokenID),
-		slog.String("refresh_token_id", claims.ID))
+		slog.String("refresh_token_id", claims.ID),
+		slog.String("session_id", claims.SessionID))
 
 	return accessToken, nil
 }
@@ -300,6 +314,35 @@ func (s *tokenService) RevokeToken(ctx context.Context, tokenStr string) error {
 	s.logger.InfoContext(ctx, "Successfully revoked token",
 		slog.String("token_id", claims.ID),
 		slog.Int64("user_id", claims.UserID))
+
+	return nil
+}
+
+// RevokeSession revokes every token issued in the same session as the given
+// claims: the access token, the refresh token it was paired with, and any
+// access token rotated from that refresh token. Revoking only the presented
+// access token would leave the refresh token able to mint replacements for the
+// rest of its lifetime.
+func (s *tokenService) RevokeSession(ctx context.Context, claims *models.Claims) error {
+	if claims.SessionID == "" {
+		// Issued before tokens carried a session id; this token is the only one
+		// that can still be identified.
+		s.logger.WarnContext(ctx, "Revoking a token with no session id",
+			slog.String("token_id", claims.ID),
+			slog.Int64("user_id", claims.UserID))
+		return s.store.RevokeToken(ctx, claims.ID)
+	}
+
+	s.logger.InfoContext(ctx, "Revoking session",
+		slog.String("session_id", claims.SessionID),
+		slog.Int64("user_id", claims.UserID))
+
+	if err := s.store.RevokeSession(ctx, claims.SessionID); err != nil {
+		s.logger.ErrorContext(ctx, "Failed to revoke session",
+			slog.String("session_id", claims.SessionID),
+			slog.String("error", err.Error()))
+		return err
+	}
 
 	return nil
 }

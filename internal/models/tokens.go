@@ -28,6 +28,10 @@ type Claims struct {
 	// Token-specific claims
 	TokenType string `json:"token_type"` // "access" or "refresh"
 
+	// SessionID is shared by every token issued for one login, including access
+	// tokens later rotated from the refresh token, so logout can revoke them all.
+	SessionID string `json:"session_id,omitempty"`
+
 	// Extra metadata
 	DeviceID string `json:"device_id,omitempty"` // For tracking different devices
 	ClientID string `json:"client_id,omitempty"` // For different client applications
@@ -57,6 +61,7 @@ type TokenMetadata struct {
 	ID         string    `json:"id"`
 	UserID     int64     `json:"user_id"`
 	TokenType  string    `json:"token_type"`
+	SessionID  string    `json:"session_id,omitempty"`
 	DeviceID   string    `json:"device_id,omitempty"`
 	ClientID   string    `json:"client_id,omitempty"`
 	IsRevoked  bool      `json:"is_revoked"`

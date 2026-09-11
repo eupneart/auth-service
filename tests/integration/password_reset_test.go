@@ -200,6 +200,10 @@ func (s *recoveryTokenService) RefreshAccessToken(context.Context, string) (stri
 
 func (s *recoveryTokenService) RevokeToken(context.Context, string) error { return nil }
 
+// These tests exercise password recovery, which revokes by user rather than by
+// session, so logout's path is a no-op here.
+func (s *recoveryTokenService) RevokeSession(context.Context, *models.Claims) error { return nil }
+
 func (s *recoveryTokenService) GetTokenMetadata(context.Context, string) (*models.TokenMetadata, error) {
 	return nil, nil
 }

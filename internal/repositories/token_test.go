@@ -15,7 +15,7 @@ import (
 
 // tokenMetadataColumns mirrors the tokenColumns select list, in order.
 var tokenMetadataColumns = []string{
-	"id", "user_id", "token_type", "device_id", "client_id",
+	"id", "user_id", "token_type", "session_id", "device_id", "client_id",
 	"is_revoked", "created_at", "expires_at", "last_used_at",
 }
 
@@ -39,6 +39,7 @@ func TestTokenRepo_SaveTokenMetadata(t *testing.T) {
 		ID:         "token-id",
 		UserID:     7,
 		TokenType:  models.TokenTypeAccess,
+		SessionID:  "session-1",
 		DeviceID:   "device-1",
 		ClientID:   "client-1",
 		IsRevoked:  false,
@@ -48,7 +49,7 @@ func TestTokenRepo_SaveTokenMetadata(t *testing.T) {
 	}
 
 	mock.ExpectExec("INSERT INTO token_metadata").
-		WithArgs("token-id", int64(7), models.TokenTypeAccess, "device-1", "client-1",
+		WithArgs("token-id", int64(7), models.TokenTypeAccess, "session-1", "device-1", "client-1",
 			false, now, metadata.ExpiresAt, now).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 
@@ -79,7 +80,7 @@ func TestTokenRepo_GetTokenMetadata(t *testing.T) {
 
 	now := time.Now()
 	row := sqlmock.NewRows(tokenMetadataColumns).
-		AddRow("token-id", int64(7), models.TokenTypeAccess, "device-1", "client-1",
+		AddRow("token-id", int64(7), models.TokenTypeAccess, "session-1", "device-1", "client-1",
 			false, now, now.Add(15*time.Minute), now)
 
 	mock.ExpectQuery("FROM token_metadata WHERE id").
@@ -106,7 +107,7 @@ func TestTokenRepo_GetTokenMetadata_NullableColumns(t *testing.T) {
 
 	now := time.Now()
 	row := sqlmock.NewRows(tokenMetadataColumns).
-		AddRow("token-id", int64(7), models.TokenTypeAccess, nil, nil,
+		AddRow("token-id", int64(7), models.TokenTypeAccess, nil, nil, nil,
 			false, now, now.Add(15*time.Minute), nil)
 
 	mock.ExpectQuery("FROM token_metadata WHERE id").
@@ -283,6 +284,71 @@ func TestTokenRepo_RevokeTokenByID(t *testing.T) {
 
 	require.NoError(t, repo.RevokeTokenByID(context.Background(), "token-id"))
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// One statement ends the whole session: the access token, the refresh token it
+// was issued with, and every access token rotated from that refresh token.
+func TestTokenRepo_RevokeSession(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewTokenRepo(db)
+
+	mock.ExpectExec("UPDATE token_metadata SET is_revoked = true WHERE session_id").
+		WithArgs("session-1").
+		WillReturnResult(sqlmock.NewResult(0, 3))
+
+	require.NoError(t, repo.RevokeSession(context.Background(), "session-1"))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// Revoking an already-revoked session is not an error, so logging out twice does
+// not answer 500.
+func TestTokenRepo_RevokeSession_AlreadyRevoked(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewTokenRepo(db)
+
+	mock.ExpectExec("UPDATE token_metadata SET is_revoked = true WHERE session_id").
+		WithArgs("session-1").
+		WillReturnResult(sqlmock.NewResult(0, 0))
+
+	require.NoError(t, repo.RevokeSession(context.Background(), "session-1"))
+}
+
+func TestTokenRepo_RevokeSession_ExecError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewTokenRepo(db)
+
+	mock.ExpectExec("UPDATE token_metadata SET is_revoked = true WHERE session_id").
+		WithArgs("session-1").
+		WillReturnError(errors.New("connection lost"))
+
+	err = repo.RevokeSession(context.Background(), "session-1")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "revoking session")
+}
+
+func TestTokenRepo_RevokeSession_RowsAffectedError(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	defer db.Close()
+
+	repo := NewTokenRepo(db)
+
+	mock.ExpectExec("UPDATE token_metadata SET is_revoked = true WHERE session_id").
+		WithArgs("session-1").
+		WillReturnResult(sqlmock.NewErrorResult(errors.New("driver failure")))
+
+	err = repo.RevokeSession(context.Background(), "session-1")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "checking revocation result")
 }
 
 func TestTokenRepo_RevokeAllTokensForUser(t *testing.T) {
@@ -466,9 +532,9 @@ func TestTokenRepo_GetAllTokensForUser(t *testing.T) {
 
 	now := time.Now()
 	rows := sqlmock.NewRows(tokenMetadataColumns).
-		AddRow("token-1", int64(7), models.TokenTypeAccess, "device-1", "client-1",
+		AddRow("token-1", int64(7), models.TokenTypeAccess, "session-1", "device-1", "client-1",
 			false, now, now.Add(15*time.Minute), now).
-		AddRow("token-2", int64(7), models.TokenTypeRefresh, nil, nil,
+		AddRow("token-2", int64(7), models.TokenTypeRefresh, nil, nil, nil,
 			true, now, now.Add(24*time.Hour), nil)
 
 	mock.ExpectQuery("FROM token_metadata WHERE user_id").
@@ -509,7 +575,7 @@ func TestTokenRepo_GetAllTokensForUser_ScanError(t *testing.T) {
 	repo := NewTokenRepo(db)
 
 	rows := sqlmock.NewRows(tokenMetadataColumns).
-		AddRow("token-1", int64(7), models.TokenTypeAccess, "device-1", "client-1",
+		AddRow("token-1", int64(7), models.TokenTypeAccess, "session-1", "device-1", "client-1",
 			false, "not-a-timestamp", time.Now(), nil)
 
 	mock.ExpectQuery("FROM token_metadata WHERE user_id").
@@ -529,7 +595,7 @@ func TestTokenRepo_GetAllTokensForUser_RowsError(t *testing.T) {
 	repo := NewTokenRepo(db)
 
 	rows := sqlmock.NewRows(tokenMetadataColumns).
-		AddRow("token-1", int64(7), models.TokenTypeAccess, nil, nil,
+		AddRow("token-1", int64(7), models.TokenTypeAccess, nil, nil, nil,
 			false, time.Now(), time.Now(), nil).
 		RowError(0, errors.New("connection lost mid-iteration"))
 
@@ -553,7 +619,7 @@ func TestTokenRepo_GetActiveTokensForUser(t *testing.T) {
 
 	now := time.Now()
 	rows := sqlmock.NewRows(tokenMetadataColumns).
-		AddRow("token-1", int64(7), models.TokenTypeAccess, "device-1", "client-1",
+		AddRow("token-1", int64(7), models.TokenTypeAccess, "session-1", "device-1", "client-1",
 			false, now, now.Add(15*time.Minute), now)
 
 	mock.ExpectQuery("AND is_revoked = false AND expires_at").
@@ -591,7 +657,7 @@ func TestTokenRepo_GetActiveTokensForUser_ScanError(t *testing.T) {
 	repo := &TokenRepo{DB: db}
 
 	rows := sqlmock.NewRows(tokenMetadataColumns).
-		AddRow("token-1", int64(7), models.TokenTypeAccess, nil, nil,
+		AddRow("token-1", int64(7), models.TokenTypeAccess, nil, nil, nil,
 			false, "not-a-timestamp", time.Now(), nil)
 
 	mock.ExpectQuery("AND is_revoked = false AND expires_at").

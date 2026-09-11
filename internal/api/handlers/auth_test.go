@@ -98,6 +98,11 @@ func (m *MockTokenService) RevokeToken(ctx context.Context, tokenStr string) err
 	return args.Error(0)
 }
 
+func (m *MockTokenService) RevokeSession(ctx context.Context, claims *models.Claims) error {
+	args := m.Called(ctx, claims)
+	return args.Error(0)
+}
+
 func (m *MockTokenService) GetTokenMetadata(ctx context.Context, tokenID string) (*models.TokenMetadata, error) {
 	args := m.Called(ctx, tokenID)
 	if args.Get(0) == nil {
@@ -500,9 +505,10 @@ func TestAuthHandler_ValidateInvalidTokenReturnsResult(t *testing.T) {
 func TestAuthHandler_Logout(t *testing.T) {
 	mockTokenService := new(MockTokenService)
 	handler := NewAuthHandler(nil, mockTokenService, nil)
-	mockTokenService.On("ValidateToken", mock.Anything, "access-token").
-		Return(&models.Claims{UserID: 42, TokenType: models.TokenTypeAccess}, nil)
-	mockTokenService.On("RevokeToken", mock.Anything, "access-token").Return(nil)
+	claims := &models.Claims{UserID: 42, TokenType: models.TokenTypeAccess, SessionID: "session-1"}
+	mockTokenService.On("ValidateToken", mock.Anything, "access-token").Return(claims, nil)
+	// The whole session is revoked, not the single token that was presented.
+	mockTokenService.On("RevokeSession", mock.Anything, claims).Return(nil)
 
 	req := httptest.NewRequest(http.MethodPost, "/logout", nil)
 	req.Header.Set("Authorization", "Bearer access-token")
@@ -614,9 +620,9 @@ func TestAuthHandler_ValidateInvalidTokenVariants(t *testing.T) {
 func TestAuthHandler_LogoutRevocationFailure(t *testing.T) {
 	tokenService := new(MockTokenService)
 	handler := NewAuthHandler(nil, tokenService, nil)
-	tokenService.On("ValidateToken", mock.Anything, "access-token").
-		Return(&models.Claims{UserID: 1, TokenType: models.TokenTypeAccess}, nil)
-	tokenService.On("RevokeToken", mock.Anything, "access-token").
+	claims := &models.Claims{UserID: 1, TokenType: models.TokenTypeAccess, SessionID: "session-1"}
+	tokenService.On("ValidateToken", mock.Anything, "access-token").Return(claims, nil)
+	tokenService.On("RevokeSession", mock.Anything, claims).
 		Return(errors.New("database unavailable"))
 
 	req := httptest.NewRequest(http.MethodPost, "/logout", nil)
