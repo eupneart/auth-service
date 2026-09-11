@@ -1,0 +1,78 @@
+version: 2
+updates:
+  # Enable version updates for pip (requirements.txt / requirements-dev.txt)
+  - package-ecosystem: "go"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "eupneart"
+    assignees:
+      - "eupneart"
+    commit-message:
+      prefix: "fix"
+      prefix-development: "chore"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "pip"
+    # Group related updates together
+    groups:
+      pytest:
+        patterns:
+          - "pytest*"
+      linting:
+        patterns:
+          - "flake8*"
+          - "black*"
+          - "mypy*"
+      pydantic:
+        patterns:
+          - "pydantic*"
+      nats:
+        patterns:
+          - "nats-py*"
+
+  # Enable version updates for Docker
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "10:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "eupneart"
+    assignees:
+      - "eupneart"
+    commit-message:
+      prefix: "fix"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "docker"
+
+  # Enable version updates for GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/.github/workflows"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "11:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "eupneart"
+    assignees:
+      - "eupneart"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    labels:
+      - "dependencies"
+      - "github-actions"
