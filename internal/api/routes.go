@@ -1,0 +1,57 @@
+package api
+
+import (
+	"net/http"
+
+	"github.com/eupneart/auth-service/internal/api/handlers"
+	authmiddleware "github.com/eupneart/auth-service/internal/api/middleware"
+	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
+)
+
+func (s *Server) Routes() http.Handler {
+	mux := chi.NewRouter()
+
+	// First in the chain so nothing downstream logs without a correlation id.
+	mux.Use(authmiddleware.CorrelationID)
+
+	// specify who is allowed to connect (cors policy)
+	mux.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"https://eupneart.com", "http://localhost:4200", "http://localhost:8080"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token", authmiddleware.CorrelationIDHeader},
+		ExposedHeaders:   []string{"Link", authmiddleware.CorrelationIDHeader},
+		AllowCredentials: true,
+		MaxAge:           300,
+	}))
+
+	mux.Use(chimiddleware.Heartbeat("/ping"))
+	mux.Use(authmiddleware.Logging)
+
+	// create auth handler with both UserService and TokenService
+	authHandler := handlers.NewAuthHandler(s.UserService, s.TokenService, s.PasswordResetService)
+
+	// Both routes accept credentials and both pay for a bcrypt comparison, so
+	// they share one per-IP allowance rather than one each.
+	credentialRoutes := mux.With(authmiddleware.RateLimit(s.credentialLimiter))
+	credentialRoutes.Post("/authenticate", authHandler.Authenticate)
+	credentialRoutes.Post("/register", authHandler.Register)
+
+	mux.Post("/refresh", authHandler.Refresh)
+	mux.Post("/validate", authHandler.Validate)
+
+	// Public recovery routes carry their own rate limit; the rest of the public
+	// surface is unchanged.
+	recoveryRoutes := mux.With(authmiddleware.RateLimit(s.passwordLimiter))
+	recoveryRoutes.Post("/password/forgot", authHandler.ForgotPassword)
+	recoveryRoutes.Post("/password/reset", authHandler.ResetPassword)
+
+	authMiddleware := authmiddleware.Auth(s.TokenService)
+	protectedRoutes := mux.With(authMiddleware)
+	protectedRoutes.Post("/logout", authHandler.Logout)
+	protectedRoutes.Get("/me", authHandler.GetMe)
+	protectedRoutes.Post("/password/change", authHandler.ChangePassword)
+
+	return mux
+}

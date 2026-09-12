@@ -1,0 +1,14 @@
+.git
+.gitignore
+.env
+.env.*
+bin/
+build/
+dist/
+dev-notes/
+tests/
+scripts/
+notes.txt
+coverage.out
+coverage.html
+*.md

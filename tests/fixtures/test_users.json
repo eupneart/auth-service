@@ -1,0 +1,48 @@
+{
+  "test_users": [
+    {
+      "id": 1,
+      "email": "admin@test.com",
+      "first_name": "Admin",
+      "last_name": "User",
+      "password": "admin123",
+      "role": "admin",
+      "is_active": true
+    },
+    {
+      "id": 2,
+      "email": "user@test.com",
+      "first_name": "Test",
+      "last_name": "User",
+      "password": "user123",
+      "role": "user",
+      "is_active": true
+    },
+    {
+      "id": 3,
+      "email": "inactive@test.com",
+      "first_name": "Inactive",
+      "last_name": "User",
+      "password": "inactive123",
+      "role": "user",
+      "is_active": false
+    }
+  ],
+  "test_credentials": [
+    {
+      "email": "admin@test.com",
+      "password": "admin123",
+      "expected_role": "admin"
+    },
+    {
+      "email": "user@test.com",
+      "password": "user123",
+      "expected_role": "user"
+    },
+    {
+      "email": "invalid@test.com",
+      "password": "wrongpassword",
+      "expected_error": "invalid credentials"
+    }
+  ]
+}
