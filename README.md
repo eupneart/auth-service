@@ -11,7 +11,7 @@ user registration, login, JWT issuing/validation and password recovery.
 - Protected routes via `Authorization: Bearer <token>` middleware
 - Password reset by email (SMTP in production, local file mailbox in development)
 - Per-IP rate limiting on the credential and recovery endpoints
-- Structured JSON logging with a request correlation id (`X-Request-Id`)
+- Structured JSON logging with a request correlation id (`X-Correlation-Id`)
 
 ## Tech stack
 

@@ -9,7 +9,7 @@ import (
 
 // CorrelationIDAttr is the log attribute key under which the correlation id is
 // recorded.
-const CorrelationIDAttr = "cid"
+const CorrelationIDAttr = "correlation_id"
 
 // maxCorrelationIDLen bounds a caller-supplied correlation id.
 const maxCorrelationIDLen = 128

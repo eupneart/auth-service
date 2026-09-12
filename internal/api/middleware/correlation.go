@@ -8,8 +8,10 @@ import (
 )
 
 // CorrelationIDHeader carries the correlation id on both the request and the
-// response.
-const CorrelationIDHeader = "X-Request-Id"
+// response. The name matches the other eupneart services, so one id follows a
+// request across them, and stays distinct from the per-hop X-Request-Id that
+// proxies and ingress controllers set themselves.
+const CorrelationIDHeader = "X-Correlation-Id"
 
 // CorrelationID puts a correlation id into the request context so that every log
 // record emitted while serving the request carries it.
