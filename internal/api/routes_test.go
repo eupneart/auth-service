@@ -93,6 +93,64 @@ func TestRoutesRateLimitRecoveryEndpoints(t *testing.T) {
 		"requests past the allowance must be rejected before reaching the handler")
 }
 
+func TestRoutesRateLimitCredentialEndpoints(t *testing.T) {
+	server := NewServer(nil, nil, routeTokenServiceStub{}, nil)
+	router := server.Routes()
+
+	send := func() int {
+		req := httptest.NewRequest(http.MethodPost, "/authenticate",
+			strings.NewReader(`{}`))
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		return w.Code
+	}
+
+	for range credentialRequestsPerIP {
+		assert.Equal(t, http.StatusBadRequest, send())
+	}
+
+	assert.Equal(t, http.StatusTooManyRequests, send(),
+		"login attempts past the allowance must be rejected before reaching bcrypt")
+}
+
+// Login and registration share one allowance, so exhausting it on either route
+// closes both. Separate allowances would let an attacker alternate for double
+// the budget.
+func TestRoutesRateLimitCredentialEndpointsShareOneAllowance(t *testing.T) {
+	server := NewServer(nil, nil, routeTokenServiceStub{}, nil)
+	router := server.Routes()
+
+	for range credentialRequestsPerIP {
+		req := httptest.NewRequest(http.MethodPost, "/authenticate", strings.NewReader(`{}`))
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/register", strings.NewReader(`{}`))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusTooManyRequests, w.Code)
+}
+
+// The credential and recovery limiters are separate, so login attempts must not
+// consume the password-reset budget.
+func TestRoutesCredentialAndRecoveryLimitsAreIndependent(t *testing.T) {
+	server := NewServer(nil, nil, routeTokenServiceStub{}, nil)
+	router := server.Routes()
+
+	for range credentialRequestsPerIP + 1 {
+		req := httptest.NewRequest(http.MethodPost, "/authenticate", strings.NewReader(`{}`))
+		router.ServeHTTP(httptest.NewRecorder(), req)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/password/forgot",
+		strings.NewReader(`{"email":"not-an-email"}`))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestRoutesRateLimitDoesNotApplyToOtherEndpoints(t *testing.T) {
 	server := NewServer(nil, nil, routeTokenServiceStub{}, nil)
 	router := server.Routes()

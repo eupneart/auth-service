@@ -32,8 +32,12 @@ func (s *Server) Routes() http.Handler {
 	// create auth handler with both UserService and TokenService
 	authHandler := handlers.NewAuthHandler(s.UserService, s.TokenService, s.PasswordResetService)
 
-	mux.Post("/authenticate", authHandler.Authenticate)
-	mux.Post("/register", authHandler.Register)
+	// Both routes accept credentials and both pay for a bcrypt comparison, so
+	// they share one per-IP allowance rather than one each.
+	credentialRoutes := mux.With(authmiddleware.RateLimit(s.credentialLimiter))
+	credentialRoutes.Post("/authenticate", authHandler.Authenticate)
+	credentialRoutes.Post("/register", authHandler.Register)
+
 	mux.Post("/refresh", authHandler.Refresh)
 	mux.Post("/validate", authHandler.Validate)
 

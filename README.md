@@ -10,7 +10,7 @@ user registration, login, JWT issuing/validation and password recovery.
   periodic cleanup of expired metadata
 - Protected routes via `Authorization: Bearer <token>` middleware
 - Password reset by email (SMTP in production, local file mailbox in development)
-- Per-IP rate limiting on the recovery endpoints
+- Per-IP rate limiting on the credential and recovery endpoints
 - Structured JSON logging with a request correlation id (`X-Request-Id`)
 
 ## Tech stack
@@ -170,8 +170,8 @@ go run ./cmd/migrate -path ./migrations up
 | Method | Path               | Auth   | Description                                      |
 | ------ | ------------------ | ------ | ------------------------------------------------ |
 | GET    | `/ping`            | –      | Health check                                     |
-| POST   | `/register`        | –      | Create a user (`first_name`, `last_name`, `email`, `password`) |
-| POST   | `/authenticate`    | –      | Log in (`email`, `password`) and receive tokens  |
+| POST   | `/register`        | –      | Create a user (`first_name`, `last_name`, `email`, `password`), rate limited |
+| POST   | `/authenticate`    | –      | Log in (`email`, `password`) and receive tokens, rate limited |
 | POST   | `/refresh`         | –      | Exchange a refresh token for a new access token  |
 | POST   | `/validate`        | –      | Validate an access token                         |
 | POST   | `/password/forgot` | –      | Send a reset link (rate limited)                 |
@@ -180,7 +180,16 @@ go run ./cmd/migrate -path ./migrations up
 | GET    | `/me`              | Bearer | Current user profile                             |
 | POST   | `/password/change` | Bearer | Change the password of the logged-in user        |
 
-The recovery endpoints allow 10 requests per IP per minute.
+Two independent per-IP allowances, each 10 requests per minute. `/authenticate`
+and `/register` share one, so alternating between them cannot double it; the two
+recovery endpoints share the other. Every attempt on the credential routes costs
+a bcrypt comparison, which is what makes an unthrottled route expensive as well
+as guessable.
+
+Counters live in memory per process, so a multi-instance deployment limits per
+instance. Clients are keyed by `RemoteAddr` and `X-Forwarded-For` is ignored,
+since nothing here identifies a trusted proxy; behind one, put a per-client limit
+on the proxy.
 
 ## Make targets
 
